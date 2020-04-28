@@ -9,7 +9,7 @@ import re
 import sys
 
 
-RE_LABEL_OP = re.compile(r"\([A-Z]+\):\(.*\)")
+RE_LABEL = re.compile(r"\([A-Z]+\):\(.*\)")
 RE_OP = re.compile(r"\s+[A-Z].*")
 RE_COMMENT = re.compile(r";.*")
 RE_DC = re.compile(r"\s+DC\s")
@@ -28,6 +28,8 @@ def err_exit(msg):
     sys.exit(1)
 
 class Parser:
+    REG_NAME_LIST = ["GR0", "GR1", "GR2", "GR3", "GR4", "GR5", "GR6", "GR7"]
+
     def __init__(self, input_):
         self._input = input_
         self._mem = []
@@ -37,6 +39,9 @@ class Parser:
         # ラベルの実際の値を保持する {ラベル名(str):実際の番地(int)}
         # keyが重複した場合、エラー
         self._actual_labels = {}
+        # 予約語 レジスタ名
+        for r in self.REG_NAME_LIST:
+            self._actual_labels[r] = None
         # 開始位置 (START疑似命令の指定先)
         self._start = -1
         # 終了位置
@@ -51,11 +56,19 @@ class Parser:
 
     def set_actual_label(self, label, line_num):
         if self._actual_labels[label] is not None:
-            err_exit("duplicate label ({label})")
+            err_exit("defined label ({self._line_num}: {label})")
         self._actual_labels[label] = line_num
 
     def resolve_label(self):
-        pass
+        for label, elemlist in self._unresolved_labels.items():
+            if label not in self._actual_labels:
+                err_exit("undefined label ({label})")
+            addr = self._actual_labels[label]
+            if addr is None:
+                err_exit("reserved label ({label})")
+            addr = addr & 0xffff
+            for elem in elemlist:
+                elem.value = addr
 
     def get_mem(self):
         return self._mem[:]
@@ -71,15 +84,91 @@ class Parser:
         line_ = re.sub(RE_COMMENT, "", line)
         if len(line_.strip()) == 0:
             return []
-        label = None
-        m = re.match(RE_LABEL_OP, line_)
+        m = re.match(RE_LABEL, line_)
         if m is not None:
-            label = m.group(1)
+            self.set_actual_label(m.group(1), len(self._mem))
             line_ = m.group(2)
         m = re.match(RE_OP, line_)
         if m is None:
-            err_exit(f"syntax error ({line})")
+            err_exit(f"syntax error ({self._line_num})")
         tokens = line_.strip().split()
+        return self.parse_op(tokens, line_)
+
+    def parse_op(self, tokens, line):
+        op = tokens[0]
+        if op == "NOP":
+            return self.op_1word(0x00, 0, 0)
+        elif op = "LD":
+            # TODO not implemented
+        elif op = "ST":
+            # TODO not implemented
+        elif op = "LAD":
+            # TODO not implemented
+        elif op = "ADDA":
+            # TODO not implemented
+        elif op = "SUBA":
+            # TODO not implemented
+        elif op = "ADDL":
+            # TODO not implemented
+        elif op = "SUBL":
+            # TODO not implemented
+        elif op = "AND":
+            # TODO not implemented
+        elif op = "OR":
+            # TODO not implemented
+        elif op = "XOR":
+            # TODO not implemented
+        elif op = "CPA":
+            # TODO not implemented
+        elif op = "CPL":
+            # TODO not implemented
+        elif op = "SLA":
+            # TODO not implemented
+        elif op = "SRA":
+            # TODO not implemented
+        elif op = "SLL":
+            # TODO not implemented
+        elif op = "SRL":
+            # TODO not implemented
+        elif op = "JMI":
+            # TODO not implemented
+        elif op = "JNZ":
+            # TODO not implemented
+        elif op = "JZE":
+            # TODO not implemented
+        elif op = "JUMP":
+            # TODO not implemented
+        elif op = "JPL":
+            # TODO not implemented
+        elif op = "JOV":
+            # TODO not implemented
+        elif op = "PUSH":
+            # TODO not implemented
+        elif op = "POP":
+            # TODO not implemented
+        elif op = "CALL":
+            # TODO not implemented
+        elif op = "RET":
+            return self.op_1word(0x81, 0, 0)
+        elif op = "SVC":
+            # TODO not implemented
+        elif op = "START":
+            # TODO not implemented
+        elif op = "END":
+            # TODO not implemented
+        elif op = "DS":
+            # TODO not implemented
+        elif op == "DC":
+            return self.parse_DC(line)
+        elif op = "IN":
+            # TODO not implemented
+        elif op = "OUT":
+            # TODO not implemented
+        elif op = "RPUSH":
+            # TODO not implemented
+        elif op = "RPOP":
+            # TODO not implemented
+        err_exit("unkown ope ({self._line_num}: {op})")
 
     def parse_DC(self, line):
         args = re.sub(RE_DC, "", line)
@@ -87,43 +176,48 @@ class Parser:
         # 最低1つは引数がある前提
         arg = m.group(1)
         args = m.group(3).strip()
-        mem = self.parse_DC_arg(arg)
+        mem_part = self.parse_DC_arg(arg)
         while len(args) != 0:
             if args[0] != ",":
-                err_exit("syntax error ',' ({line})")
+                err_exit("syntax error ',' ({self._line_num})")
             args = args[1:].strip()
             m = re.match(RE_DC_ARG, args)
             arg = m.group(1)
             args = m.group(3)
-            mem.extend(self.parse_DC_arg(arg))
-        return mem
+            mem_part.extend(self.parse_DC_arg(arg))
+        return mem_part
 
     def parse_DC_arg(self, arg):
         ln = self._line_num
-        mem = []
+        mem_part = []
         if arg[0] == "'":
             # 文字列
             st = arg[1:-1].replace("''", "'")
             for s in st:
-                mem.append(Element(ord(s)&0xff, ln))
+                mem_part.append(Element(ord(s)&0xff, ln))
         elif arg[0] == "#":
             # 16進数
-            mem.append(Element(int(arg[1:], 16), ln))
+            mem_part.append(Element(int(arg[1:], 16), ln))
         elif arg[0].isdecimal():
             # 10進数
-            mem.append(Element(int(arg), ln))
+            mem_part.append(Element(int(arg), ln))
         else:
             # ラベル
             elem = Element(0, ln)
             self.add_unresolved_label(arg, elem)
-            mem.append(elem)
-        return mem
+            mem_part.append(elem)
+        return mem_part
 
-    def op_1word(self, label, opcode, operand1, operand2):
-        pass
+    def op_1word(self, opcode, operand1, operand2):
+        word = ((opcode & 0xff) << 8) | ((operand1 & 0xf) << 4) | (operand2 & 0xf)
+        return [Element(word, self._line_num)]
 
-    def op_2word(self, label, opcode, operand1, operand2, operand3):
-        pass
+    def op_2word(self, opcode, operand1, operand2, operand3):
+        word1 = ((opcode & 0xff) << 8) | ((operand1 & 0xf) << 4) | (operand3 & 0xf)
+        elem1 = Element(word1, self._line_num)
+        elem2 = Element(0, self._line_num)
+        self._unresolved_labels(operand2, elem2)
+        return [elem1, elem2]
 # End Parser
 
 class Comet2:
