@@ -35,6 +35,8 @@ def err_exit(msg):
 
 class Parser:
     REG_NAME_LIST = ["GR0", "GR1", "GR2", "GR3", "GR4", "GR5", "GR6", "GR7"]
+    SVC_OP_IN = 1
+    SVC_OP_OUT = 2
 
     def __init__(self, input_):
         self._input = input_
@@ -128,17 +130,49 @@ class Parser:
         op = tokens[0]
         args = tokens[1:]
         if op == "IN":
-            # TODO not implemented
-            pass
+            if len(args) != 2:
+                err_exit(f"bad args ({self._line_num})")
+            mem_part = self.parse_op(["PUSH", "0", "GR1"])
+            mem_part.extend(self.parse_op(["PUSH", "0", "GR2"]))
+            mem_part.extend(self.parse_op(["LAD", "GR1", args[0]]))
+            mem_part.extend(self.parse_op(["LAD", "GR2", args[1]]))
+            mem_part.extend(self.parse_op(["SVC", str(self.SVC_OP_IN)]))
+            mem_part.extend(self.parse_op(["POP", "GR2"]))
+            mem_part.extend(self.parse_op(["POP", "GR1"]))
+            return mem_part
         elif op == "OUT":
-            # TODO not implemented
-            pass
+            if len(args) != 2:
+                err_exit(f"bad args ({self._line_num})")
+            mem_part = self.parse_op(["PUSH", "0", "GR1"])
+            mem_part.extend(self.parse_op(["PUSH", "0", "GR2"]))
+            mem_part.extend(self.parse_op(["LAD", "GR1", args[0]]))
+            mem_part.extend(self.parse_op(["LAD", "GR2", args[1]]))
+            mem_part.extend(self.parse_op(["SVC", str(self.SVC_OP_OUT)]))
+            mem_part.extend(self.parse_op(["POP", "GR2"]))
+            mem_part.extend(self.parse_op(["POP", "GR1"]))
+            return mem_part
         elif op == "RPUSH":
-            # TODO not implemented
-            pass
+            if len(args) != 0:
+                err_exit(f"bad args ({self._line_num})")
+            mem_part = self.parse_op(["PUSH", "0", "GR1"])
+            mem_part = self.parse_op(["PUSH", "0", "GR2"])
+            mem_part = self.parse_op(["PUSH", "0", "GR3"])
+            mem_part = self.parse_op(["PUSH", "0", "GR4"])
+            mem_part = self.parse_op(["PUSH", "0", "GR5"])
+            mem_part = self.parse_op(["PUSH", "0", "GR6"])
+            mem_part = self.parse_op(["PUSH", "0", "GR7"])
+            return mem_part
         elif op == "RPOP":
-            # TODO not implemented
-            pass
+            if len(args) != 0:
+                err_exit(f"bad args ({self._line_num})")
+            mem_part.extend(self.parse_op(["POP", "GR7"]))
+            mem_part.extend(self.parse_op(["POP", "GR6"]))
+            mem_part.extend(self.parse_op(["POP", "GR5"]))
+            mem_part.extend(self.parse_op(["POP", "GR4"]))
+            mem_part.extend(self.parse_op(["POP", "GR3"]))
+            mem_part.extend(self.parse_op(["POP", "GR2"]))
+            mem_part.extend(self.parse_op(["POP", "GR1"]))
+            return mem_part
         return None
 
     def parse_op(self, tokens):
@@ -200,8 +234,8 @@ class Parser:
         elif op == "RET":
             return self.mk_1word(0x81, 0, 0)
         elif op == "SVC":
-            # adr == 1:  IN GR1 GR2
-            # adr == 2:  OUT GR1 GR2
+            # adr == self.SVC_OP_IN:  IN GR1 GR2
+            # adr == self.SVC_OP_OUT:  OUT GR1 GR2
             adr = int(args[0])
             return self.mk_2word(0xf0, adr, 0, 0)
         elif op == "START":
@@ -283,7 +317,7 @@ class Parser:
 
     def op_2word(self, op, args, without_opr1=False):
         opr1 = 0
-        opr2 = "=0"
+        opr2 = "0"
         opr3 = 0
         opr3_arg = None
         if args[0] in self.REG_NAME_LIST:
@@ -319,6 +353,8 @@ class Parser:
         elem2 = Element(0, self._line_num)
         if operand2[0] == "=":
             self.add_unresolved_const(int(operand2[1:]), elem2)
+        elif operand2.isdecimal():
+            elem2.value = int(operand2)
         else:
             self.add_unresolved_label(operand2, elem2)
         return [elem1, elem2]
