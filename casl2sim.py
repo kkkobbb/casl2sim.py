@@ -458,18 +458,41 @@ class Comet2:
         adr = opr2
         if opr3 != 0:
             adr += self.get_gr(opr3)
-        self.set_gr(opr1, self._mem[adr].value)
-        self.output(elem.line, f"GR{opr1} <- {self._mem[adr].value:04x}")
+        val = self._mem[adr].value
+        self._zf = int(val == 0)
+        self.set_gr(opr1, val)
+        self.output(elem.line, f"GR{opr1} <- {val:04x} (ZF <- {self._zf})")
 
     def op_ST(self, elem):
-        pass
+        code1 = elem.value
+        elem2 = self.get_pr_inc()
+        code2 = elem2.value
+        _, opr1, opr2, opr3 = self.decode_2word(code1, code2)
+        adr = opr2
+        if opr3 != 0:
+            adr += self.get_gr(opr3)
+        val = self.get_gr(opr1)
+        self._mem[adr].value = val
+        self.output(elem.line, f"MEM[{adr}] <- {val:04x}")
 
     def op_LAD(self, elem):
-        pass
+        code1 = elem.value
+        elem2 = self.get_pr_inc()
+        code2 = elem2.value
+        _, opr1, opr2, opr3 = self.decode_2word(code1, code2)
+        adr = opr2
+        if opr3 != 0:
+            adr += self.get_gr(opr3)
+        self.set_gr(opr1, adr)
+        self.output(elem.line, f"GR{opr1} <- {adr:04x}")
 
     def op_LD_REG(self, elem):
-        pass
-
+        code = elem.value
+        _, opr1, opr2 = self.decode_1word(code)
+        val = self.get_gr(opr2)
+        self._zf = int(val == 0)
+        self.set_gr(opr1, val)
+        self.output(elem.line, f"GR{opr1} <- {val:04x} (ZF <- {self._zf})")
 
 
     def op_SVC(self, elem):

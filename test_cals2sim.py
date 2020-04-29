@@ -2,6 +2,7 @@
 # coding:utf-8
 import unittest
 import casl2sim
+import sys
 
 
 casl2sim.Element.__eq__ = lambda s,o: s.value == o.value and s.line == o.line
@@ -91,6 +92,70 @@ class TestComet2(unittest.TestCase):
         elem = c.get_pr_inc()
         c.op_LD(elem)
         self.assertEqual(expected, c._gr)
+
+    def test_op_ST_no_opr3(self):
+        mem = [
+                casl2sim.Element(0x1110, 0),
+                casl2sim.Element(0x0003, 0),
+                casl2sim.Element(0x0001, 0),
+                casl2sim.Element(0x0002, 0)]
+        c = casl2sim.Comet2(None, mem, 0, 0)
+        c._gr[1] = 0x0007
+        expected = 0x0007
+        elem = c.get_pr_inc()
+        c.op_ST(elem)
+        self.assertEqual(expected, c._mem[0x0003].value)
+
+    def test_op_ST_opr3(self):
+        mem = [
+                casl2sim.Element(0x1112, 0),
+                casl2sim.Element(0x0003, 0),
+                casl2sim.Element(0x0001, 0),
+                casl2sim.Element(0x0002, 0),
+                casl2sim.Element(0x0003, 0)]
+        c = casl2sim.Comet2(None, mem, 0, 0)
+        c._gr[1] = 0x0007
+        c._gr[2] = 0x0001
+        expected = 0x0007
+        elem = c.get_pr_inc()
+        c.op_ST(elem)
+        self.assertEqual(0x0002, c._mem[0x0003].value)
+        self.assertEqual(expected, c._mem[0x0004].value)
+
+    def test_op_LAD_no_opr3(self):
+        mem = [
+                casl2sim.Element(0x1210, 0),
+                casl2sim.Element(0x0007, 0)]
+        c = casl2sim.Comet2(None, mem, 0, 0)
+        expected = c._gr[:]
+        expected[1] = 0x0007
+        elem = c.get_pr_inc()
+        c.op_LAD(elem)
+        self.assertEqual(expected, c._gr)
+
+    def test_op_LAD_opr3(self):
+        mem = [
+                casl2sim.Element(0x1215, 0),
+                casl2sim.Element(0x0007, 0)]
+        c = casl2sim.Comet2(None, mem, 0, 0)
+        c._gr[5] = 3
+        expected = c._gr[:]
+        expected[1] = 0x000a
+        elem = c.get_pr_inc()
+        c.op_LAD(elem)
+        self.assertEqual(expected, c._gr)
+
+    def test_op_LD_REG(self):
+        mem = [
+                casl2sim.Element(0x1415, 0)]
+        c = casl2sim.Comet2(None, mem, 0, 0)
+        c._gr[5] = 23
+        expected = c._gr[:]
+        expected[1] = c._gr[5]
+        elem = c.get_pr_inc()
+        c.op_LD_REG(elem)
+        self.assertEqual(expected, c._gr)
+
 
 # End TestComet2
 
