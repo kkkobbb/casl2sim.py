@@ -60,13 +60,19 @@ class Parser:
         # 解析中の行番号
         self._line_num = 0
 
+    def parse(self):
+        pass
+
+    def get_mem(self):
+        return self._mem[:]
+
     def add_unresolved_label(self, label, elem):
         if label not in self._unresolved_labels:
             self._unresolved_labels[label] = []
         self._unresolved_labels[label].append(elem)
 
     def set_actual_label(self, label, line_num):
-        if self._actual_labels[label] is not None:
+        if label in self._actual_labels:
             err_exit(f"defined label ({self._line_num}: {label})")
         self._actual_labels[label] = line_num
 
@@ -96,12 +102,6 @@ class Parser:
             addr = (len(self._mem) - 1) & 0xffff
             for elem in elemlist:
                 elem.value = addr
-
-    def get_mem(self):
-        return self._mem[:]
-
-    def parse(self):
-        pass
 
     def parse_line(self, line):
         """
@@ -466,36 +466,7 @@ def main():
 
     args = parser.parse_args()
 
-    print("test")
-    p = Parser(None)
-    print("parse_DC")
-    a = p.parse_DC(" DC 12, #000f, LAB, 'abcd''e'''")
-    for m in a:
-        print(m)
-    print("op_1or2word")
-    aa = p.op_1or2word(0xff, 0xf0, ["GR0", "GR1"])
-    for m in aa:
-        print(m)
-    print("op_1or2word")
-    aaa = p.op_1or2word(0xff, 0xf0, ["GR0", "AAA", "GR1"])
-    for m in aaa:
-        print(m)
-    print(p._unresolved_labels)
-    p._unresolved_labels["AAA"][0].value = 10
-    for m in aaa:
-        print(m)
-
-    print("op_1or2word")
-    aaaa = p.op_1or2word(0xff, 0xf0, ["GR0", "=19", "GR1"])
-    aaaa = p.op_1or2word(0xff, 0xf0, ["GR0", "=10", "GR1"])
-    for m in aaaa:
-        print(m)
-    print(p._unresolved_consts)
-    p.resolve_consts()
-    for m in aaaa:
-        print(m)
-
-    c = Comet2()
+    # TODO
 
 if __name__ == "__main__":
     main()
