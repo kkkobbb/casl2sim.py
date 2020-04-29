@@ -18,12 +18,11 @@ RE_DC_ARG = re.compile(r"('(''|[^'])+'|[0-9]+|#[0-9A-Fa-f]+|[A-Z][0-9A-Z]*)(.*)"
 class Element:
     """
     メモリの1要素分のデータ構造
-
-    value: int  この要素の値
-    line:  int  (debug用) asmでの行番号を格納する asmと無関係または実行時に書き換えられた場合は0
     """
     def __init__(self, v, l):
+        # int 個の要素の値
         self.value = v
+        # int (debug用) asmでの行番号を格納する asmと無関係または実行時に書き換えられた場合は0
         self.line = l
 
     def __str__(self):
@@ -376,7 +375,7 @@ class Comet2:
     MEM_SIZE = 0xFFFF
     REG_NUM = 8
 
-    def __init__(self, outputf, mem, start, end):
+    def __init__(self, mem):
         self._gr = [0] * Comet2.REG_NUM
         self._pr = 0
         self._sp = 0
@@ -384,9 +383,9 @@ class Comet2:
         self._sf = 0
         self._of = 0
         self.init_mem(mem)
-        self._start = start
-        self._end = end
-        self._outputf = outputf
+        self._outputf = None
+        self.OP_TABLE = {
+                0x10:self.op_LD, 0x11:self.op_ST, 0x12:self.op_LAD, 0x14:self.op_LD_REG}
 
     def init_mem(self, mem):
         self._mem = mem
@@ -397,6 +396,20 @@ class Comet2:
             err_exit("memory over")
         rest_mem = [Element(0, 0) for _ in range(Comet2.MEM_SIZE - len_mem)]
         self._mem.extend(rest_mem)
+
+    def run(self, outputf, start, end):
+        self._outputf = outputf
+        self._pr = start
+        while self._pr != end:
+            self.operate_once()
+
+    def operate_once(self):
+        elem = self.get_pr_inc()
+        op = (elem.value & 0xff00) >> 8
+        if op not in self.OP_TABLE:
+            err_exit(f"unknown operation ([{self._pr - 1}]: {elem.value})")
+        op_func = self.OP_TABLE[op]
+        op_func(elem)
 
     def output(self, line_num, msg):
         if self._outputf is None:
@@ -431,11 +444,6 @@ class Comet2:
         m = self._mem[self._pr]
         self._pr += 1
         return m
-
-    def operate_once(self):
-        elem = self.get_pr_inc()
-        op = (elem.value & 0xff00) >> 8
-        # TODO
 
     def decode_1word(self, code):
         op = (code & 0xff00) >> 8
@@ -517,6 +525,7 @@ def main():
             description=__doc__,
             formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("asmfile", help="casl2 code")
+    parser.add_argument("--emit-mem", action="store_true", help="アセンブル後のメモリを出力して終了する")
     parser.add_argument("--zero-all", action="store_true", help="全てのレジスタ、メモリを0で初期化する")
     parser.add_argument("--zero-reg", action="store_true", help="全てのレジスタを0で初期化する")
     parser.add_argument("--zero-mem", action="store_true", help="全てのメモリを0で初期化する")
@@ -551,11 +560,24 @@ def main():
     mem = p.get_mem()
     start = p.get_start()
     end = p.get_end()
+    if len(mem) > end:
+        err_exit(f"syntax error 'END' position")
 
-    for i, m in enumerate(mem):
-        print(f"{i:04x}: {m}")
+    if args.emit_mem:
+        width = 8
+        for i in range(len(mem)):
+            rest = i % width
+            if rest == 0:
+                print(f"[{i:04x}]:", end="")
+            print(f" {mem[i].value:04x}", end="")
+            if rest == width - 1:
+                print("")
+        if len(mem) % width != 0:
+            print("")
+        return
 
-    # TODO
+    c = Comet2(mem)
+    c.run(sys.stdout, start, end)
 
 if __name__ == "__main__":
     main()

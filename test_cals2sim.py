@@ -71,7 +71,7 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(0x0003, 0),
                 casl2sim.Element(0x0000, 0),
                 casl2sim.Element(0x0012, 0)]
-        c = casl2sim.Comet2(None, mem, 0, 0)
+        c = casl2sim.Comet2(mem)
         expected = c._gr[:]
         expected[1] = 0x0012
         elem = c.get_pr_inc()
@@ -85,7 +85,7 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(0x0000, 0),
                 casl2sim.Element(0x0001, 0),
                 casl2sim.Element(0x0012, 0)]
-        c = casl2sim.Comet2(None, mem, 0, 0)
+        c = casl2sim.Comet2(mem)
         c._gr[3] = 1
         expected = c._gr[:]
         expected[1] = 0x0012
@@ -99,7 +99,7 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(0x0003, 0),
                 casl2sim.Element(0x0001, 0),
                 casl2sim.Element(0x0002, 0)]
-        c = casl2sim.Comet2(None, mem, 0, 0)
+        c = casl2sim.Comet2(mem)
         c._gr[1] = 0x0007
         expected = 0x0007
         elem = c.get_pr_inc()
@@ -113,7 +113,7 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(0x0001, 0),
                 casl2sim.Element(0x0002, 0),
                 casl2sim.Element(0x0003, 0)]
-        c = casl2sim.Comet2(None, mem, 0, 0)
+        c = casl2sim.Comet2(mem)
         c._gr[1] = 0x0007
         c._gr[2] = 0x0001
         expected = 0x0007
@@ -126,7 +126,7 @@ class TestComet2(unittest.TestCase):
         mem = [
                 casl2sim.Element(0x1210, 0),
                 casl2sim.Element(0x0007, 0)]
-        c = casl2sim.Comet2(None, mem, 0, 0)
+        c = casl2sim.Comet2(mem)
         expected = c._gr[:]
         expected[1] = 0x0007
         elem = c.get_pr_inc()
@@ -137,7 +137,7 @@ class TestComet2(unittest.TestCase):
         mem = [
                 casl2sim.Element(0x1215, 0),
                 casl2sim.Element(0x0007, 0)]
-        c = casl2sim.Comet2(None, mem, 0, 0)
+        c = casl2sim.Comet2(mem)
         c._gr[5] = 3
         expected = c._gr[:]
         expected[1] = 0x000a
@@ -148,7 +148,7 @@ class TestComet2(unittest.TestCase):
     def test_op_LD_REG(self):
         mem = [
                 casl2sim.Element(0x1415, 0)]
-        c = casl2sim.Comet2(None, mem, 0, 0)
+        c = casl2sim.Comet2(mem)
         c._gr[5] = 23
         expected = c._gr[:]
         expected[1] = c._gr[5]
