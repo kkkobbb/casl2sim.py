@@ -51,7 +51,8 @@ class Parser:
         # 未割当の定数を格納する要素を保持する {定数(int): [格納先の要素(Element), ...]}
         self._unresolved_consts = {}
         # 開始位置 (START疑似命令の指定先)
-        self._start = -1
+        self._start = 0
+        self._start_label = None
         # 終了位置
         self._end = -1
         # 解析中の行番号
@@ -73,6 +74,10 @@ class Parser:
         self._unresolved_consts[const].append(elem)
 
     def resolve_labels(self):
+        if self._start_label is not None:
+            if self._start_label in self._actual_labels:
+                err_exit(f"undefined label ({self._start_label})")
+            self._start = self._actual_labels[self._start_label]
         for label, elemlist in self._unresolved_labels.items():
             if label not in self._actual_labels:
                 err_exit(f"undefined label ({label})")
@@ -112,104 +117,17 @@ class Parser:
         if m is None:
             err_exit(f"syntax error ({self._line_num})")
         tokens = line_.strip().split()
-        return self.parse_op(tokens, line_)
+        if tokens[0] == "DS":
+            return self.parse_DC(line_)
+        macro = self.parse_macro(tokens)
+        if macro is not None:
+            return macro
+        return self.parse_op(tokens)
 
-    def parse_op(self, tokens, line):
+    def parse_macro(self, tokens):
         op = tokens[0]
-        if op == "NOP":
-            return self.op_1word(0x00, 0, 0)
-        elif op == "LD":
-            # TODO not implemented
-            pass
-        elif op == "ST":
-            # TODO not implemented
-            pass
-        elif op == "LAD":
-            # TODO not implemented
-            pass
-        elif op == "ADDA":
-            # TODO not implemented
-            pass
-        elif op == "SUBA":
-            # TODO not implemented
-            pass
-        elif op == "ADDL":
-            # TODO not implemented
-            pass
-        elif op == "SUBL":
-            # TODO not implemented
-            pass
-        elif op == "AND":
-            # TODO not implemented
-            pass
-        elif op == "OR":
-            # TODO not implemented
-            pass
-        elif op == "XOR":
-            # TODO not implemented
-            pass
-        elif op == "CPA":
-            # TODO not implemented
-            pass
-        elif op == "CPL":
-            # TODO not implemented
-            pass
-        elif op == "SLA":
-            # TODO not implemented
-            pass
-        elif op == "SRA":
-            # TODO not implemented
-            pass
-        elif op == "SLL":
-            # TODO not implemented
-            pass
-        elif op == "SRL":
-            # TODO not implemented
-            pass
-        elif op == "JMI":
-            # TODO not implemented
-            pass
-        elif op == "JNZ":
-            # TODO not implemented
-            pass
-        elif op == "JZE":
-            # TODO not implemented
-            pass
-        elif op == "JUMP":
-            # TODO not implemented
-            pass
-        elif op == "JPL":
-            # TODO not implemented
-            pass
-        elif op == "JOV":
-            # TODO not implemented
-            pass
-        elif op == "PUSH":
-            # TODO not implemented
-            pass
-        elif op == "POP":
-            # TODO not implemented
-            pass
-        elif op == "CALL":
-            # TODO not implemented
-            pass
-        elif op == "RET":
-            return self.op_1word(0x81, 0, 0)
-        elif op == "SVC":
-            # TODO not implemented
-            pass
-        elif op == "START":
-            # TODO not implemented
-            pass
-        elif op == "END":
-            # TODO not implemented
-            pass
-        elif op == "DS":
-            # TODO not implemented
-            pass
-        elif op == "DC":
-            return self.parse_DC(line)
-        elif op == "IN":
+        args = tokens[1:]
+        if op == "IN":
             # TODO not implemented
             pass
         elif op == "OUT":
@@ -221,7 +139,87 @@ class Parser:
         elif op == "RPOP":
             # TODO not implemented
             pass
-        err_exit(f"unkown ope ({self._line_num}: {op})")
+        return None
+
+    def parse_op(self, tokens):
+        op = tokens[0]
+        args = tokens[1:]
+        if op == "NOP":
+            return self.mk_1word(0x00, 0, 0)
+        elif op == "LD":
+            return self.op_1or2word(0x14, 0x10, args)
+        elif op == "ST":
+            return self.op_2word(0x11, args)
+        elif op == "LAD":
+            return self.op_2word(0x12, args)
+        elif op == "ADDA":
+            return self.op_1or2word(0x24, 0x20, args)
+        elif op == "SUBA":
+            return self.op_1or2word(0x25, 0x21, args)
+        elif op == "ADDL":
+            return self.op_1or2word(0x26, 0x22, args)
+        elif op == "SUBL":
+            return self.op_1or2word(0x27, 0x23, args)
+        elif op == "AND":
+            return self.op_1or2word(0x34, 0x30, args)
+        elif op == "OR":
+            return self.op_1or2word(0x35, 0x31, args)
+        elif op == "XOR":
+            return self.op_1or2word(0x36, 0x32, args)
+        elif op == "CPA":
+            return self.op_1or2word(0x44, 0x40, args)
+        elif op == "CPL":
+            return self.op_1or2word(0x45, 0x41, args)
+        elif op == "SLA":
+            return self.op_2word(0x50, args)
+        elif op == "SRA":
+            return self.op_2word(0x51, args)
+        elif op == "SLL":
+            return self.op_2word(0x52, args)
+        elif op == "SRL":
+            return self.op_2word(0x53, args)
+        elif op == "JMI":
+            return self.op_2word(0x61, args, True)
+        elif op == "JNZ":
+            return self.op_2word(0x61, args, True)
+        elif op == "JZE":
+            return self.op_2word(0x61, args, True)
+        elif op == "JUMP":
+            return self.op_2word(0x61, args, True)
+        elif op == "JPL":
+            return self.op_2word(0x61, args, True)
+        elif op == "JOV":
+            return self.op_2word(0x61, args, True)
+        elif op == "PUSH":
+            return self.op_2word(0x70, args, True)
+        elif op == "POP":
+            opr1 = self.reg(args[0])
+            return self.mk_1word(0x71, opr1, 0)
+        elif op == "CALL":
+            return self.op_2word(0x80, args, True)
+        elif op == "RET":
+            return self.mk_1word(0x81, 0, 0)
+        elif op == "SVC":
+            # adr == 1:  IN GR1 GR2
+            # adr == 2:  OUT GR1 GR2
+            adr = int(args[0])
+            return self.mk_2word(0xf0, adr, 0, 0)
+        elif op == "START":
+            if len(args) != 0:
+                self._start_label = args[0]
+            else:
+                self._start = len(self._mem)
+            return []
+        elif op == "END":
+            self._end = len(self._mem)
+            return []
+        elif op == "DS":
+            size = int(args[0])
+            return [Element(0, self._line_num) for _ in range(size)]
+        elif op == "DC":
+            # not reached
+            err_exit("internal error")
+        err_exit(f"unkown operation ({self._line_num}: {op})")
 
     def parse_DC(self, line):
         args = re.sub(RE_DC, "", line)
@@ -261,17 +259,49 @@ class Parser:
             mem_part.append(elem)
         return mem_part
 
-    def op_simple(self, op, args):
+    def op_1or2word(self, op1word, op2word, args):
         opr1 = self.reg(args[0])
         if args[1] in self.REG_NAME_LIST:
             opr2 = self.reg(args[1])
-            return self.op_1word(op, opr1, opr2)
+            return self.mk_1word(op1word, opr1, opr2)
         opr2 = args[1]
         if len(args) <= 2:
             opr3 = 0
         else:
             opr3 = self.reg(args[2])
-        return self.op_2word(op, opr1, opr2, opr3)
+        return self.mk_2word(op2word, opr1, opr2, opr3)
+
+    def op_1word(self, op, args):
+        opr1 = 0
+        opr2 = 0
+        len_args = len(args)
+        if len_args == 1:
+            opr1 = self.reg(args[0])
+        if len_args >= 2:
+            opr2 = self.reg(args[1])
+        return self.mk_1word(op, opr1, opr2)
+
+    def op_2word(self, op, args, without_opr1=False):
+        opr1 = 0
+        opr2 = "=0"
+        opr3 = 0
+        opr3_arg = None
+        if args[0] in self.REG_NAME_LIST:
+            if without_opr1:
+                err_exit(f"syntax error (many reg arg) ({self._line_num})")
+            opr1 = self.reg(args[0])
+            opr2 = args[1]
+            if len(args) >3:
+                opr3_arg = args[2]
+        else:
+            if not without_opr1:
+                err_exit(f"syntax error (few reg arg) ({self._line_num})")
+            opr2 = args[0]
+            if len(args) >= 2:
+                opr3_arg = args[1]
+        if opr3_arg is not None:
+            opr3 = self.reg(opr3_arg)
+        return self.mk_2word(op, opr1, opr2, opr3)
 
     zero = ord("0")
     def reg(self, regname):
@@ -279,11 +309,11 @@ class Parser:
             err_exit(f"no register name ({self._line_num}: {regname}")
         return ord(regname[2]) - self.zero
 
-    def op_1word(self, opcode, operand1, operand2):
+    def mk_1word(self, opcode, operand1, operand2):
         word = ((opcode & 0xff) << 8) | ((operand1 & 0xf) << 4) | (operand2 & 0xf)
         return [Element(word, self._line_num)]
 
-    def op_2word(self, opcode, operand1, operand2, operand3):
+    def mk_2word(self, opcode, operand1, operand2, operand3):
         word1 = ((opcode & 0xff) << 8) | ((operand1 & 0xf) << 4) | (operand3 & 0xf)
         elem1 = Element(word1, self._line_num)
         elem2 = Element(0, self._line_num)
@@ -406,12 +436,12 @@ def main():
     a = p.parse_DC(" DC 12, #000f, LAB, 'abcd''e'''")
     for m in a:
         print(m)
-    print("op_simple")
-    aa = p.op_simple(0xff, ["GR0", "GR1"])
+    print("op_1or2word")
+    aa = p.op_1or2word(0xff, 0xf0, ["GR0", "GR1"])
     for m in aa:
         print(m)
-    print("op_simple")
-    aaa = p.op_simple(0xff, ["GR0", "AAA", "GR1"])
+    print("op_1or2word")
+    aaa = p.op_1or2word(0xff, 0xf0, ["GR0", "AAA", "GR1"])
     for m in aaa:
         print(m)
     print(p._unresolved_labels)
@@ -419,9 +449,9 @@ def main():
     for m in aaa:
         print(m)
 
-    print("op_simple")
-    aaaa = p.op_simple(0xff, ["GR0", "=19", "GR1"])
-    aaaa = p.op_simple(0xff, ["GR0", "=10", "GR1"])
+    print("op_1or2word")
+    aaaa = p.op_1or2word(0xff, 0xf0, ["GR0", "=19", "GR1"])
+    aaaa = p.op_1or2word(0xff, 0xf0, ["GR0", "=10", "GR1"])
     for m in aaaa:
         print(m)
     print(p._unresolved_consts)
