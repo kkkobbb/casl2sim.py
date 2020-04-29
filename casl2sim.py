@@ -74,6 +74,9 @@ class Parser:
     def get_start(self):
         return self._start
 
+    def get_end(self):
+        return self._end
+
     def add_unresolved_label(self, label, elem):
         if label not in self._unresolved_labels:
             self._unresolved_labels[label] = []
@@ -373,14 +376,36 @@ class Comet2:
     MEM_SIZE = 0xFFFF
     REG_NUM = 8
 
-    def __init__(self):
+    def __init__(self, outputf, mem, start, end):
         self._gr = [0] * Comet2.REG_NUM
         self._pr = 0
         self._sp = 0
         self._zf = 0
         self._sf = 0
         self._of = 0
-        self._mem = [Element(0, 0) for i in range(Comet2.MEM_SIZE)]
+        self.init_mem(mem)
+        self._start = start
+        self._end = end
+        self._outputf = outputf
+
+    def init_mem(self, mem):
+        self._mem = mem
+        len_mem = len(self._mem)
+        if len_mem == Comet2.MEM_SIZE:
+            return
+        if len_mem > Comet2.MEM_SIZE:
+            err_exit("memory over")
+        rest_mem = [Element(0, 0) for _ in range(Comet2.MEM_SIZE - len_mem)]
+        self._mem.extend(rest_mem)
+
+    def output(self, line_num, msg):
+        if self._outputf is None:
+            return
+        if line_num == 0:
+            lstr = "L-:"
+        else:
+            lstr = f"L{line_num}:"
+        self._outputf.write(f"{lstr} {msg}\n")
 
     def get_gr(self, n):
         if n < 0 or Comet2.REG_NUM <= n:
@@ -392,36 +417,6 @@ class Comet2:
             err_exit("GR index out of range")
         self._gr[n] = val & 0xffff
 
-    def get_pr(self):
-        return self._pr
-
-    def set_pr(self, val):
-        self._pr = val & 0xffff
-
-    def get_sp(self):
-        return self._sp
-
-    def set_sp(self, val):
-        self._sp = val & 0xffff
-
-    def get_zf(self):
-        return self._zf
-
-    def set_zf(self, val):
-        self._zf = val & 1
-
-    def get_sf(self):
-        return self._sf
-
-    def set_sf(self, val):
-        self._sf = val & 1
-
-    def get_of(self):
-        return self._of
-
-    def set_of(self, val):
-        self._of = val & 1
-
     def get_mem(self, adr):
         if adr < 0 or Comet2.MEM_SIZE <= adr:
             err_exit("MEM address out of range")
@@ -431,6 +426,55 @@ class Comet2:
         if adr < 0 or Comet2.MEM_SIZE <= adr:
             err_exit("MEM address out of range")
         self._mem[adr].value = val & 0xffff
+
+    def get_pr_inc(self):
+        m = self._mem[self._pr]
+        self._pr += 1
+        return m
+
+    def operate_once(self):
+        elem = self.get_pr_inc()
+        op = (elem.value & 0xff00) >> 8
+        # TODO
+
+    def decode_1word(self, code):
+        op = (code & 0xff00) >> 8
+        opr1 = (code & 0x00f0) >> 4
+        opr2 = (code & 0x000f)
+        return (op, opr1, opr2)
+
+    def decode_2word(self, code1, code2):
+        op = (code1 & 0xff00) >> 8
+        opr1 = (code1 & 0x00f0) >> 4
+        opr2 = code2
+        opr3 = (code1 & 0x000f)
+        return (op, opr1, opr2, opr3)
+
+    def op_LD(self, elem):
+        code1 = elem.value
+        elem2 = self.get_pr_inc()
+        code2 = elem2.value
+        _, opr1, opr2, opr3 = self.decode_2word(code1, code2)
+        adr = opr2
+        if opr3 != 0:
+            adr += self.get_gr(opr3)
+        self.set_gr(opr1, self._mem[adr].value)
+        self.output(elem.line, f"GR{opr1} <- {self._mem[adr].value:04x}")
+
+    def op_ST(self, elem):
+        pass
+
+    def op_LAD(self, elem):
+        pass
+
+    def op_LD_REG(self, elem):
+        pass
+
+
+
+    def op_SVC(self, elem):
+        # OUTの場合、"OUT: msg"の形式で出力する
+        pass
 # End Comet2
 
 def run(machine, outputf):
@@ -483,9 +527,10 @@ def main():
         p.parse(sys.stdout)
     mem = p.get_mem()
     start = p.get_start()
+    end = p.get_end()
 
-    for m in mem:
-        print(m)
+    for i, m in enumerate(mem):
+        print(f"{i:04x}: {m}")
 
     # TODO
 
