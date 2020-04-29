@@ -467,9 +467,10 @@ class Comet2:
         if opr3 != 0:
             adr += self.get_gr(opr3)
         val = self._mem[adr].value
+        # TODO 全てのフラグ
         self._zf = int(val == 0)
         self.set_gr(opr1, val)
-        self.output(elem.line, f"GR{opr1} <- {val:04x} (ZF <- {self._zf})")
+        self.output(elem.line, f"GR{opr1} <- MEM[{adr}]={val:04x} (ZF <- {self._zf})")
 
     def op_ST(self, elem):
         code1 = elem.value
@@ -481,7 +482,7 @@ class Comet2:
             adr += self.get_gr(opr3)
         val = self.get_gr(opr1)
         self._mem[adr].value = val
-        self.output(elem.line, f"MEM[{adr}] <- {val:04x}")
+        self.output(elem.line, f"MEM[{adr}] <- GR{opr1}={val:04x}")
 
     def op_LAD(self, elem):
         code1 = elem.value
@@ -498,9 +499,10 @@ class Comet2:
         code = elem.value
         _, opr1, opr2 = self.decode_1word(code)
         val = self.get_gr(opr2)
+        # TODO 全てのフラグ
         self._zf = int(val == 0)
         self.set_gr(opr1, val)
-        self.output(elem.line, f"GR{opr1} <- {val:04x} (ZF <- {self._zf})")
+        self.output(elem.line, f"GR{opr1} <- GR{opr2}={val:04x} (ZF <- {self._zf})")
 
 
     def op_SVC(self, elem):
