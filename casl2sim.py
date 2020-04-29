@@ -9,10 +9,10 @@ import re
 import sys
 
 
-RE_LABEL = re.compile(r"\([A-Z]+\):\(.*\)")
+RE_LABEL = re.compile(r"([A-Za-z][A-Z0-9a-z]*)(.*)")
 RE_OP = re.compile(r"\s+[A-Z].*")
 RE_COMMENT = re.compile(r";.*")
-RE_DC = re.compile(r"\s+DC\s")
+RE_DC = re.compile(r"\s+DC\s+")
 RE_DC_ARG = re.compile(r"('(''|[^'])+'|[0-9]+|#[0-9A-Fa-f]+|[A-Z][0-9A-Z]*)(.*)")
 
 class Element:
@@ -38,8 +38,7 @@ class Parser:
     SVC_OP_IN = 1
     SVC_OP_OUT = 2
 
-    def __init__(self, input_):
-        self._input = input_
+    def __init__(self):
         self._mem = []
         # 未解決のラベルを格納する要素を保持する {ラベル名(str):[格納先の要素(Element), ...]}
         # keyが重複した場合、リストに追加していく
@@ -60,11 +59,20 @@ class Parser:
         # 解析中の行番号
         self._line_num = 0
 
-    def parse(self):
-        pass
+    def parse(self, inputf):
+        for line in inputf:
+            self._line_num += 1
+            self._mem.extend(self.parse_line(line))
+        if self._end < 0:
+            err_exit("syntex error not found 'END'")
+        self.resolve_labels()
+        self.resolve_consts()
 
     def get_mem(self):
         return self._mem[:]
+
+    def get_start(self):
+        return self._start
 
     def add_unresolved_label(self, label, elem):
         if label not in self._unresolved_labels:
@@ -108,7 +116,7 @@ class Parser:
         lineを解析する
         解析の結果追加されるメモリのリストを返す
         """
-        line_ = re.sub(RE_COMMENT, "", line)
+        line_ = re.sub(RE_COMMENT, "", line)[:-1]
         if len(line_.strip()) == 0:
             return []
         m = re.match(RE_LABEL, line_)
@@ -119,65 +127,66 @@ class Parser:
         if m is None:
             err_exit(f"syntax error ({self._line_num})")
         tokens = line_.strip().split()
-        if tokens[0] == "DS":
+        op = tokens[0]
+        if op == "DC":
             return self.parse_DC(line_)
-        macro = self.parse_macro(tokens)
+        args = []
+        if len(tokens) >= 2:
+            for token in tokens[1:]:
+                args.extend(token.split(","))
+        macro = self.parse_macro(op, args)
         if macro is not None:
             return macro
-        return self.parse_op(tokens)
+        return self.parse_op(op, args)
 
-    def parse_macro(self, tokens):
-        op = tokens[0]
-        args = tokens[1:]
+    def parse_macro(self, op, args):
         if op == "IN":
             if len(args) != 2:
                 err_exit(f"bad args ({self._line_num})")
-            mem_part = self.parse_op(["PUSH", "0", "GR1"])
-            mem_part.extend(self.parse_op(["PUSH", "0", "GR2"]))
-            mem_part.extend(self.parse_op(["LAD", "GR1", args[0]]))
-            mem_part.extend(self.parse_op(["LAD", "GR2", args[1]]))
-            mem_part.extend(self.parse_op(["SVC", str(self.SVC_OP_IN)]))
-            mem_part.extend(self.parse_op(["POP", "GR2"]))
-            mem_part.extend(self.parse_op(["POP", "GR1"]))
+            mem_part = self.parse_op("PUSH", ["0", "GR1"])
+            mem_part.extend(self.parse_op("PUSH", ["0", "GR2"]))
+            mem_part.extend(self.parse_op("LAD", ["GR1", args[0]]))
+            mem_part.extend(self.parse_op("LAD", ["GR2", args[1]]))
+            mem_part.extend(self.parse_op("SVC", [str(self.SVC_OP_IN)]))
+            mem_part.extend(self.parse_op("POP", ["GR2"]))
+            mem_part.extend(self.parse_op("POP", ["GR1"]))
             return mem_part
         elif op == "OUT":
             if len(args) != 2:
                 err_exit(f"bad args ({self._line_num})")
-            mem_part = self.parse_op(["PUSH", "0", "GR1"])
-            mem_part.extend(self.parse_op(["PUSH", "0", "GR2"]))
-            mem_part.extend(self.parse_op(["LAD", "GR1", args[0]]))
-            mem_part.extend(self.parse_op(["LAD", "GR2", args[1]]))
-            mem_part.extend(self.parse_op(["SVC", str(self.SVC_OP_OUT)]))
-            mem_part.extend(self.parse_op(["POP", "GR2"]))
-            mem_part.extend(self.parse_op(["POP", "GR1"]))
+            mem_part = self.parse_op("PUSH", ["0", "GR1"])
+            mem_part.extend(self.parse_op("PUSH", ["0", "GR2"]))
+            mem_part.extend(self.parse_op("LAD", ["GR1", args[0]]))
+            mem_part.extend(self.parse_op("LAD", ["GR2", args[1]]))
+            mem_part.extend(self.parse_op("SVC", [str(self.SVC_OP_OUT)]))
+            mem_part.extend(self.parse_op("POP", ["GR2"]))
+            mem_part.extend(self.parse_op("POP", ["GR1"]))
             return mem_part
         elif op == "RPUSH":
             if len(args) != 0:
                 err_exit(f"bad args ({self._line_num})")
-            mem_part = self.parse_op(["PUSH", "0", "GR1"])
-            mem_part = self.parse_op(["PUSH", "0", "GR2"])
-            mem_part = self.parse_op(["PUSH", "0", "GR3"])
-            mem_part = self.parse_op(["PUSH", "0", "GR4"])
-            mem_part = self.parse_op(["PUSH", "0", "GR5"])
-            mem_part = self.parse_op(["PUSH", "0", "GR6"])
-            mem_part = self.parse_op(["PUSH", "0", "GR7"])
+            mem_part = self.parse_op("PUSH", ["0", "GR1"])
+            mem_part = self.parse_op("PUSH", ["0", "GR2"])
+            mem_part = self.parse_op("PUSH", ["0", "GR3"])
+            mem_part = self.parse_op("PUSH", ["0", "GR4"])
+            mem_part = self.parse_op("PUSH", ["0", "GR5"])
+            mem_part = self.parse_op("PUSH", ["0", "GR6"])
+            mem_part = self.parse_op("PUSH", ["0", "GR7"])
             return mem_part
         elif op == "RPOP":
             if len(args) != 0:
                 err_exit(f"bad args ({self._line_num})")
-            mem_part.extend(self.parse_op(["POP", "GR7"]))
-            mem_part.extend(self.parse_op(["POP", "GR6"]))
-            mem_part.extend(self.parse_op(["POP", "GR5"]))
-            mem_part.extend(self.parse_op(["POP", "GR4"]))
-            mem_part.extend(self.parse_op(["POP", "GR3"]))
-            mem_part.extend(self.parse_op(["POP", "GR2"]))
-            mem_part.extend(self.parse_op(["POP", "GR1"]))
+            mem_part.extend(self.parse_op("POP", ["GR7"]))
+            mem_part.extend(self.parse_op("POP", ["GR6"]))
+            mem_part.extend(self.parse_op("POP", ["GR5"]))
+            mem_part.extend(self.parse_op("POP", ["GR4"]))
+            mem_part.extend(self.parse_op("POP", ["GR3"]))
+            mem_part.extend(self.parse_op("POP", ["GR2"]))
+            mem_part.extend(self.parse_op("POP", ["GR1"]))
             return mem_part
         return None
 
-    def parse_op(self, tokens):
-        op = tokens[0]
-        args = tokens[1:]
+    def parse_op(self, op, args):
         if op == "NOP":
             return self.mk_1word(0x00, 0, 0)
         elif op == "LD":
@@ -236,8 +245,8 @@ class Parser:
         elif op == "SVC":
             # adr == self.SVC_OP_IN:  IN GR1 GR2
             # adr == self.SVC_OP_OUT:  OUT GR1 GR2
-            adr = int(args[0])
-            return self.mk_2word(0xf0, adr, 0, 0)
+            adr = args[0]
+            return self.mk_2word(0xf0, 0, adr, 0)
         elif op == "START":
             if len(args) != 0:
                 self._start_label = args[0]
@@ -252,8 +261,8 @@ class Parser:
             return [Element(0, self._line_num) for _ in range(size)]
         elif op == "DC":
             # not reached
-            err_exit("internal error")
-        err_exit(f"unkown operation ({self._line_num}: {op})")
+            err_exit(f"internal error ({self._line_num})")
+        err_exit(f"unknown operation ({self._line_num}: {op})")
 
     def parse_DC(self, line):
         args = re.sub(RE_DC, "", line)
@@ -329,7 +338,7 @@ class Parser:
                 opr3_arg = args[2]
         else:
             if not without_opr1:
-                err_exit(f"syntax error (few reg arg) ({self._line_num})")
+                err_exit(f"syntax error (no reg arg) ({self._line_num})")
             opr2 = args[0]
             if len(args) >= 2:
                 opr3_arg = args[1]
@@ -465,6 +474,18 @@ def main():
     parser.add_argument("--post-exec", help="asmfile終了後に実行するcasl2 code", metavar="postfile")
 
     args = parser.parse_args()
+
+    p = Parser()
+    if args.asmfile is not None:
+        with open(args.asmfile) as f:
+            p.parse(f)
+    else:
+        p.parse(sys.stdout)
+    mem = p.get_mem()
+    start = p.get_start()
+
+    for m in mem:
+        print(m)
 
     # TODO
 
