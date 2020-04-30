@@ -30,7 +30,7 @@ class Element:
         return f"(value={self.value:04x}, line={self.line})"
 
 def err_exit(msg):
-    print(f"Error: {msg}")
+    print(f"Error: {msg}", file=sys.stderr)
     sys.exit(1)
 
 class Parser:
@@ -52,7 +52,7 @@ class Parser:
         # 開始位置 (START疑似命令の指定先)
         self._start = 0
         self._start_label = None
-        # 終了位置
+        # 終了位置 (END疑似命令の位置)
         self._end = -1
         # 解析中の行番号
         self._line_num = 0
@@ -247,8 +247,8 @@ class Parser:
         elif op == "RET":
             return self.mk_1word(0x81, 0, 0)
         elif op == "SVC":
-            # adr == Comet2.SVC_OP_IN:  IN GR1 GR2
-            # adr == Comet2.SVC_OP_OUT:  OUT GR1 GR2
+            # 1 IN:   GR1(保存先アドレス) GR2(サイズ)
+            # 2 OUT:  GR1(出力元アドレス) GR2(サイズ)
             adr = args[0]
             return self.mk_2word(0xf0, 0, adr, 0)
         elif op == "START":
@@ -292,18 +292,18 @@ class Parser:
         ln = self._line_num
         mem_part = []
         if arg[0] == "'":
-            # 文字列
+            # string
             st = arg[1:-1].replace("''", "'")
             for s in st:
                 mem_part.append(Element(ord(s)&0xff, ln))
         elif arg[0] == "#":
-            # 16進数
+            # hexadecimal
             mem_part.append(Element(int(arg[1:], 16), ln))
         elif arg[0].isdecimal():
-            # 10進数
+            # decimal
             mem_part.append(Element(int(arg), ln))
         else:
-            # ラベル
+            # label
             elem = Element(0, ln)
             self.add_unresolved_label(arg, elem)
             mem_part.append(elem)
@@ -475,8 +475,8 @@ class Comet2:
         self._mem[adr].value = val & 0xffff
 
     def fetch(self):
-        m = self._mem[self._pr]
-        self._pr += 1
+        m = self._mem[self._pr&0xffff]
+        self._pr = (self._pr + 1) & 0xffff
         return m
 
     def decode_1word(self, code):
@@ -500,7 +500,7 @@ class Comet2:
         adr = opr2
         if opr3 != 0:
             adr += self.get_gr(opr3)
-        val = self._mem[adr].value
+        val = self.get_mem(adr)
         self._zf = int(val == 0)
         self._sf = (val&0x8000) >> 15
         self.set_gr(opr1, val)
@@ -516,7 +516,7 @@ class Comet2:
         if opr3 != 0:
             adr += self.get_gr(opr3)
         val = self.get_gr(opr1)
-        self._mem[adr].value = val
+        self.set_mem(adr, val)
         self.output_debug(elem.line, f"MEM[{adr:04x}] <- GR{opr1}={val:04x}")
 
     def op_LAD(self, elem):
@@ -587,7 +587,7 @@ class Comet2:
                         d = ord(instr) & 0xff
                 else:
                     d = 0
-                self._mem[adr].value = d
+                self.set_mem(adr, d)
                 self.output_debug(elem.line, f"IN: MEM[{adr:04x}] <- {d:04x}")
         elif code2 == Comet2.SVC_OP_OUT:
             msg = []
@@ -595,7 +595,7 @@ class Comet2:
             end = start + self.get_gr(2)
             for adr in range(start, end):
                 adr = adr & Comet2.MEM_MAX
-                msg.append(self._mem[adr].value&0xff)
+                msg.append(self.get_mem(adr)&0xff)
             self.output_debug(elem.line, "SVC OUT")
             self.output(self.to_str(msg))
         else:
@@ -610,38 +610,43 @@ class Comet2:
 def base_int(nstr):
     return int(nstr, 0)
 
+class Stdout:
+    def __enter__(self):
+        return sys.stdout
+    def __exit__(self, typ, val, trace):
+        pass
+# End Stdout
+
+class Stdin:
+    def __enter__(self):
+        return sys.stdin
+    def __exit__(self, typ, val, trace):
+        pass
+# End Stdin
+
 def main():
     parser = argparse.ArgumentParser(
             description=__doc__,
             formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("asmfile", help="casl2 code")
+    parser.add_argument("--input-src", help="casl2での入力時の入力元", metavar="file")
+    parser.add_argument("--output", help="casl2での出力先", metavar="file")
+    parser.add_argument("--output-debug", help="casl2でのデバッグ出力先", metavar="file")
     parser.add_argument("--emit-bin", action="store_true", help="アセンブル後のバイナリを出力して終了する")
     parser.add_argument("--rand-mem", action="store_true", help="値が未指定のメモリを乱数で初期化する")
     parser.add_argument("--rand-seed", type=int, help="乱数のシード値", metavar="seed")
-    parser.add_argument("--set-gr0", type=base_int, default=0,
-            help="GR0の初期値", metavar="n")
-    parser.add_argument("--set-gr1", type=base_int, default=0,
-            help="GR1の初期値", metavar="n")
-    parser.add_argument("--set-gr2", type=base_int, default=0,
-            help="GR2の初期値", metavar="n")
-    parser.add_argument("--set-gr3", type=base_int, default=0,
-            help="GR3の初期値", metavar="n")
-    parser.add_argument("--set-gr4", type=base_int, default=0,
-            help="GR4の初期値", metavar="n")
-    parser.add_argument("--set-gr5", type=base_int, default=0,
-            help="GR5の初期値", metavar="n")
-    parser.add_argument("--set-gr6", type=base_int, default=0,
-            help="GR6の初期値", metavar="n")
-    parser.add_argument("--set-gr7", type=base_int, default=0,
-            help="GR7の初期値", metavar="n")
-    parser.add_argument("--set-sp", type=base_int, default=Comet2.MEM_MAX,
-            help="SPの初期値", metavar="n")
-    parser.add_argument("--set-zf", type=base_int, default=0,
-            help="FR(zero flag)の初期値", metavar="n")
-    parser.add_argument("--set-sf", type=base_int, default=0,
-            help="FR(sign flag)の初期値", metavar="n")
-    parser.add_argument("--set-of", type=base_int, default=0,
-            help="FR(overflow flag)の初期値", metavar="n")
+    parser.add_argument("--set-gr0", type=base_int, default=0, help="GR0の初期値", metavar="n")
+    parser.add_argument("--set-gr1", type=base_int, default=0, help="GR1の初期値", metavar="n")
+    parser.add_argument("--set-gr2", type=base_int, default=0, help="GR2の初期値", metavar="n")
+    parser.add_argument("--set-gr3", type=base_int, default=0, help="GR3の初期値", metavar="n")
+    parser.add_argument("--set-gr4", type=base_int, default=0, help="GR4の初期値", metavar="n")
+    parser.add_argument("--set-gr5", type=base_int, default=0, help="GR5の初期値", metavar="n")
+    parser.add_argument("--set-gr6", type=base_int, default=0, help="GR6の初期値", metavar="n")
+    parser.add_argument("--set-gr7", type=base_int, default=0, help="GR7の初期値", metavar="n")
+    parser.add_argument("--set-sp", type=base_int, default=Comet2.MEM_MAX, help="SPの初期値", metavar="n")
+    parser.add_argument("--set-zf", type=base_int, default=0, help="FR(zero flag)の初期値", metavar="n")
+    parser.add_argument("--set-sf", type=base_int, default=0, help="FR(sign flag)の初期値", metavar="n")
+    parser.add_argument("--set-of", type=base_int, default=0, help="FR(overflow flag)の初期値", metavar="n")
 
     # レジスタ、メモリの値はデフォルトでは0
 
@@ -651,11 +656,8 @@ def main():
         random.seed(args.rand_seed)
 
     p = Parser()
-    if args.asmfile is not None:
-        with open(args.asmfile) as f:
-            p.parse(f)
-    else:
-        p.parse(sys.stdout)
+    with open(args.asmfile) as f:
+        p.parse(f)
     mem = p.get_mem()
     start = p.get_start()
     end = p.get_end()
@@ -677,9 +679,11 @@ def main():
     grlist = [args.set_gr0, args.set_gr1, args.set_gr2, args.set_gr3,
             args.set_gr4, args.set_gr5, args.set_gr6, args.set_gr7]
     c.init_regs(grlist, args.set_sp, args.set_zf, args.set_sf, args.set_of)
-    c.run(start, end, sys.stdout, sys.stdout, sys.stdin)
-    for m in c._mem:
-        print(m)
+    with open(args.output, "w") if args.output else Stdout() as fo:
+        eq_output = args.output_debug == args.output
+        with fo if eq_output else open(args.output_debug, "w") if args.output_debug else Stdout() as fd:
+                with open(args.input_src) if args.input_src else Stdin() as fi:
+                    c.run(start, end, fo, fd, fi)
 
 if __name__ == "__main__":
     main()
