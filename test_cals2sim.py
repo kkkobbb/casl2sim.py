@@ -426,6 +426,136 @@ class TestComet2(unittest.TestCase):
 
 
 
+    def test_op_CPA_eq(self):
+        # ==
+        mem = [
+                casl2sim.Element(0x4010, 0),
+                casl2sim.Element(0x0002, 0),
+                casl2sim.Element(0x0005, 0)]
+        c = casl2sim.Comet2(mem)
+        c._gr[1] = 5
+        expected = c._gr[:]
+        elem = c.fetch()
+        c.op_CPA(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(1, c._zf)
+        self.assertEqual(0, c._sf)
+        self.assertEqual(0, c._of)
+
+    def test_op_CPA_lt(self):
+        # <
+        mem = [
+                casl2sim.Element(0x4010, 0),
+                casl2sim.Element(0x0002, 0),
+                casl2sim.Element(0x0005, 0)]
+        c = casl2sim.Comet2(mem)
+        c._gr[1] = 2
+        expected = c._gr[:]
+        elem = c.fetch()
+        c.op_CPA(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(0, c._zf)
+        self.assertEqual(1, c._sf)
+        self.assertEqual(0, c._of)
+
+    def test_op_CPA_gt(self):
+        # >
+        mem = [
+                casl2sim.Element(0x4010, 0),
+                casl2sim.Element(0x0002, 0),
+                casl2sim.Element(0x0005, 0)]
+        c = casl2sim.Comet2(mem)
+        c._gr[1] = 12
+        expected = c._gr[:]
+        elem = c.fetch()
+        c.op_CPA(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(0, c._zf)
+        self.assertEqual(0, c._sf)
+        self.assertEqual(0, c._of)
+
+    def test_op_CPA_REG_eq(self):
+        # ==
+        mem = [casl2sim.Element(0x4412, 0)]
+        c = casl2sim.Comet2(mem)
+        c._gr[1] = 102
+        c._gr[2] = 102
+        expected = c._gr[:]
+        elem = c.fetch()
+        c.op_CPA_REG(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(1, c._zf)
+        self.assertEqual(0, c._sf)
+        self.assertEqual(0, c._of)
+
+    def test_op_CPL_eq(self):
+        # ==
+        mem = [
+                casl2sim.Element(0x4110, 0),
+                casl2sim.Element(0x0002, 0),
+                casl2sim.Element(0x0005, 0)]
+        c = casl2sim.Comet2(mem)
+        c._gr[1] = 5
+        expected = c._gr[:]
+        elem = c.fetch()
+        c.op_CPL(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(1, c._zf)
+        self.assertEqual(0, c._sf)
+        self.assertEqual(0, c._of)
+
+    def test_op_CPL_lt(self):
+        # <
+        mem = [
+                casl2sim.Element(0x4110, 0),
+                casl2sim.Element(0x0002, 0),
+                casl2sim.Element(0x0005, 0)]
+        c = casl2sim.Comet2(mem)
+        c._gr[1] = 2
+        expected = c._gr[:]
+        elem = c.fetch()
+        c.op_CPL(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(0, c._zf)
+        self.assertEqual(0, c._sf)
+        self.assertEqual(1, c._of)
+
+    def test_op_CPL_gt(self):
+        # >
+        mem = [
+                casl2sim.Element(0x4110, 0),
+                casl2sim.Element(0x0002, 0),
+                casl2sim.Element(0x0005, 0)]
+        c = casl2sim.Comet2(mem)
+        c._gr[1] = 12
+        expected = c._gr[:]
+        elem = c.fetch()
+        c.op_CPL(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(0, c._zf)
+        self.assertEqual(0, c._sf)
+        self.assertEqual(0, c._of)
+
+    def test_op_CPL_REG_eq(self):
+        # ==
+        mem = [casl2sim.Element(0x4412, 0)]
+        c = casl2sim.Comet2(mem)
+        c._gr[1] = 304
+        c._gr[2] = 304
+        expected = c._gr[:]
+        elem = c.fetch()
+        c.op_CPL_REG(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(1, c._zf)
+        self.assertEqual(0, c._sf)
+        self.assertEqual(0, c._of)
+
+
+
+
+
+
+
     def test_op_SVC_IN_just(self):
         mem = [
                 casl2sim.Element(0xf000, 0),

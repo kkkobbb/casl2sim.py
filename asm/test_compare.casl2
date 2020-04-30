@@ -1,0 +1,16 @@
+; 比較命令
+
+A START
+ ; 算術
+ LAD GR1,9
+ CPA GR1,=12
+ LAD GR2,20
+ LAD GR3,30
+ CPA GR2,GR3
+ ; 論理
+ LAD GR2,2
+ CPL GR2,=10
+ LAD GR6,4
+ LAD GR7,5
+ CPL GR6,GR7
+ END
