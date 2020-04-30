@@ -436,7 +436,11 @@ class Comet2:
         elem = self.fetch()
         op = (elem.value & 0xff00) >> 8
         if op not in self.OP_TABLE:
-            err_exit(f"unknown operation ([{self._pr - 1:04x}]: {elem.value:04x})")
+            if elem.line == 0:
+                lstr = ""
+            else:
+                lstr = f"L{elem.line} "
+            err_exit(f"unknown operation ({lstr}[{self._pr - 1:04x}]: {elem.value:04x})")
         op_func = self.OP_TABLE[op]
         op_func(elem)
 
@@ -447,12 +451,12 @@ class Comet2:
             lstr = "L-:"
         else:
             lstr = f"L{line_num}:"
-        self._debugf.write(f"{lstr} {msg}\n")
+        self._debugf.write(f"{lstr:>6} {msg}\n")
 
     def output(self, msg):
         if self._outputf is None:
             return
-        self._outputf.write(f"OUT: {msg}\n")
+        self._outputf.write(f"  OUT: {msg}\n")
 
     def get_gr(self, n):
         if n < 0 or Comet2.REG_NUM <= n:
@@ -473,6 +477,7 @@ class Comet2:
         if adr < 0 or Comet2.MEM_MAX <= adr:
             err_exit("MEM address out of range")
         self._mem[adr].value = val & 0xffff
+        self._mem[adr].line = 0
 
     def fetch(self):
         m = self._mem[self._pr&0xffff]
@@ -531,24 +536,45 @@ class Comet2:
         self.set_gr(reg1, val)
         self.output_debug(elem.line, f"GR{reg1} <- GR{reg2}={val:04x} (ZF <- {self._zf}, SF <- {self._sf})")
 
+    def flag_ADD(self, v1, v2, r, arithmetic=True):
+        sr = r & 0x8000
+        self._zf = int(r == 0)
+        self._sf = sr >> 15
+        if arithmetic:
+            sv1 = v1 & 0x8000
+            sv2 = v2 & 0x8000
+            self._of = ((~(sv1 ^ sv2)) & (sv1 ^ sr)) >> 15
+
+    def flag_SUB(self, v1, v2, r, arithmetic=True):
+        sr = r & 0x8000
+        self._zf = int(r == 0)
+        self._sf = sr >> 15
+        if arithmetic:
+            sv1 = v1 & 0x8000
+            sv2 = v2 & 0x8000
+            self._of = ((sv1 ^ sv2) & (sv1 ^ sr)) >> 15
+
     def op_ADDA(self, elem):
         reg, adr = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
         r = (v1 + v2) & 0xffff
-        sv1 = v1 & 0x8000
-        sv2 = v2 & 0x8000
-        sr = r & 0x8000
-        self._zf = int(r == 0)
-        self._sf = sr >> 15
-        self._of = ((~(sv1 ^ sv2)) & (sv1 ^ sr)) >> 15
+        self.flag_ADD(v1, v2, r)
         self.set_gr(reg, r)
         self.output_debug(elem.line,
                 f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} + MEM[{adr:04x}]={v2:04x}> " +
                 f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_SUBA(self, elem):
-        pass
+        reg, adr = self.get_reg_adr(elem)
+        v1 = self.get_gr(reg)
+        v2 = self.get_mem(adr)
+        r = (v1 - v2) & 0xffff
+        self.flag_SUB(v1, v2, r)
+        self.set_gr(reg, r)
+        self.output_debug(elem.line,
+                f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} - MEM[{adr:04x}]={v2:04x}> " +
+                f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_ADDL(self, elem):
         pass
@@ -562,19 +588,23 @@ class Comet2:
         v1 = self.get_gr(reg1)
         v2 = self.get_gr(reg2)
         r = v1 + v2
-        sv1 = v1 & 0x8000
-        sv2 = v2 & 0x8000
-        sr = r & 0x8000
-        self._zf = int(r == 0)
-        self._sf = sr >> 15
-        self._of = ((~(sv1 ^ sv2)) & (sv1 ^ sr)) >> 15
+        self.flag_ADD(v1, v2, r)
         self.set_gr(reg1, r)
         self.output_debug(elem.line,
                 f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} + GR{reg2}={v2:04x}> " +
                 f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_SUBA_REG(self, elem):
-        pass
+        code = elem.value
+        _, reg1, reg2 = self.decode_1word(code)
+        v1 = self.get_gr(reg1)
+        v2 = self.get_gr(reg2)
+        r = (v1 - v2) & 0xffff
+        self.flag_SUB(v1, v2, r)
+        self.set_gr(reg1, r)
+        self.output_debug(elem.line,
+                f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} - GR{reg2}={v2:04x}> " +
+                f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_ADDL_REG(self, elem):
         pass
