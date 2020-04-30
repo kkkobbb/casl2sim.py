@@ -5,6 +5,7 @@ CASL2シミュレータ
 """
 import argparse
 import collections
+import random
 import re
 import sys
 
@@ -267,7 +268,7 @@ class Parser:
             return [Element(0, self._line_num) for _ in range(size)]
         elif op == "DC":
             # not reached
-            err_exit(f"internal error ({self._line_num})")
+            err_exit(f"internal error DC ({self._line_num})")
         err_exit(f"unknown operation ({self._line_num}: {op})")
 
     def parse_DC(self, line):
@@ -376,19 +377,19 @@ class Parser:
 # End Parser
 
 class Comet2:
-    MEM_SIZE = 0xFFFF
+    MEM_MAX = 0xFFFF
     REG_NUM = 8
     SVC_OP_IN = 1
     SVC_OP_OUT = 2
 
-    def __init__(self, mem):
+    def __init__(self, mem, init_mem_rand=False):
         self._gr = [0] * Comet2.REG_NUM
         self._pr = 0
         self._sp = 0
         self._zf = 0
         self._sf = 0
         self._of = 0
-        self.init_mem(mem)
+        self.init_mem(mem, init_mem_rand)
         self._inputf = None
         self._outputf = None
         self._debugf =None
@@ -401,15 +402,27 @@ class Comet2:
                 0x27:self.op_SUBL_REG,
                 0xf0:self.op_SVC}
 
-    def init_mem(self, mem):
+    def init_mem(self, mem, init_mem_rand):
         self._mem = mem
         len_mem = len(self._mem)
-        if len_mem == Comet2.MEM_SIZE:
+        if len_mem == Comet2.MEM_MAX:
             return
-        if len_mem > Comet2.MEM_SIZE:
+        if len_mem > Comet2.MEM_MAX:
             err_exit("memory over")
-        padding = [Element(0, 0) for _ in range(Comet2.MEM_SIZE - len_mem)]
+        if init_mem_rand:
+            padding = [Element(0, random.randint(0, 0xffff)) for _ in range(Comet2.MEM_MAX - len_mem)]
+        else:
+            padding = [Element(0, 0) for _ in range(Comet2.MEM_MAX - len_mem)]
         self._mem.extend(padding)
+
+    def init_regs(self, grlist, sp, zf, sf, of):
+        if len(grlist) != Comet2.REG_NUM:
+            err_exit("internal error grlist")
+        self._gr = [gr&0xffff for gr in grlist]
+        self._sp = sp & 0xffff
+        self._zf = int(zf != 0)
+        self._sf = int(sf != 0)
+        self._of = int(of != 0)
 
     def run(self, start, end, outputf=None, debugf=None, inputf=None):
         self._outputf = outputf
@@ -452,12 +465,12 @@ class Comet2:
         self._gr[n] = val & 0xffff
 
     def get_mem(self, adr):
-        if adr < 0 or Comet2.MEM_SIZE <= adr:
+        if adr < 0 or Comet2.MEM_MAX <= adr:
             err_exit("MEM address out of range")
         return self._mem[adr].value
 
     def set_mem(self, adr, val):
-        if adr < 0 or Comet2.MEM_SIZE <= adr:
+        if adr < 0 or Comet2.MEM_MAX <= adr:
             err_exit("MEM address out of range")
         self._mem[adr].value = val & 0xffff
 
@@ -564,7 +577,7 @@ class Comet2:
             self.output_debug(elem.line, "SVC IN")
             empty_f = False
             for adr in range(start, end):
-                adr = adr & Comet2.MEM_SIZE
+                adr = adr & Comet2.MEM_MAX
                 if not empty_f:
                     instr = self._inputf.read(1)
                     if instr == "":
@@ -581,7 +594,7 @@ class Comet2:
             start = self.get_gr(1)
             end = start + self.get_gr(2)
             for adr in range(start, end):
-                adr = adr & Comet2.MEM_SIZE
+                adr = adr & Comet2.MEM_MAX
                 msg.append(self._mem[adr].value&0xff)
             self.output_debug(elem.line, "SVC OUT")
             self.output(self.to_str(msg))
@@ -602,30 +615,40 @@ def main():
             description=__doc__,
             formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("asmfile", help="casl2 code")
-    parser.add_argument("--emit-mem", action="store_true", help="アセンブル後のメモリを出力して終了する")
-    parser.add_argument("--zero-all", action="store_true", help="全てのレジスタ、メモリを0で初期化する")
-    parser.add_argument("--zero-reg", action="store_true", help="全てのレジスタを0で初期化する")
-    parser.add_argument("--zero-mem", action="store_true", help="全てのメモリを0で初期化する")
-    parser.add_argument("--rand-mem", action="store_true", help="全てのメモリを乱数で初期化する")
-    parser.add_argument("--set-gr0", type=base_int, help="GR0を指定した値で初期化する", metavar="n")
-    parser.add_argument("--set-gr1", type=base_int, help="GR1を指定した値で初期化する", metavar="n")
-    parser.add_argument("--set-gr2", type=base_int, help="GR2を指定した値で初期化する", metavar="n")
-    parser.add_argument("--set-gr3", type=base_int, help="GR3を指定した値で初期化する", metavar="n")
-    parser.add_argument("--set-gr4", type=base_int, help="GR4を指定した値で初期化する", metavar="n")
-    parser.add_argument("--set-gr5", type=base_int, help="GR5を指定した値で初期化する", metavar="n")
-    parser.add_argument("--set-gr6", type=base_int, help="GR6を指定した値で初期化する", metavar="n")
-    parser.add_argument("--set-gr7", type=base_int, help="GR7を指定した値で初期化する", metavar="n")
-    parser.add_argument("--set-sp", type=base_int, help="SPを指定した値で初期化する", metavar="n")
-    parser.add_argument("--set-zf", type=base_int,
-            help="FR(zero flag)を指定した値で初期化する", metavar="n")
-    parser.add_argument("--set-sf", type=base_int,
-            help="FR(sign flag)を指定した値で初期化する", metavar="n")
-    parser.add_argument("--set-of", type=base_int,
-            help="FR(overflow flag)を指定した値で初期化する", metavar="n")
+    parser.add_argument("--emit-bin", action="store_true", help="アセンブル後のバイナリを出力して終了する")
+    parser.add_argument("--rand-mem", action="store_true", help="値が未指定のメモリを乱数で初期化する")
+    parser.add_argument("--rand-seed", type=int, help="乱数のシード値", metavar="seed")
+    parser.add_argument("--set-gr0", type=base_int, default=0,
+            help="GR0の初期値", metavar="n")
+    parser.add_argument("--set-gr1", type=base_int, default=0,
+            help="GR1の初期値", metavar="n")
+    parser.add_argument("--set-gr2", type=base_int, default=0,
+            help="GR2の初期値", metavar="n")
+    parser.add_argument("--set-gr3", type=base_int, default=0,
+            help="GR3の初期値", metavar="n")
+    parser.add_argument("--set-gr4", type=base_int, default=0,
+            help="GR4の初期値", metavar="n")
+    parser.add_argument("--set-gr5", type=base_int, default=0,
+            help="GR5の初期値", metavar="n")
+    parser.add_argument("--set-gr6", type=base_int, default=0,
+            help="GR6の初期値", metavar="n")
+    parser.add_argument("--set-gr7", type=base_int, default=0,
+            help="GR7の初期値", metavar="n")
+    parser.add_argument("--set-sp", type=base_int, default=Comet2.MEM_MAX,
+            help="SPの初期値", metavar="n")
+    parser.add_argument("--set-zf", type=base_int, default=0,
+            help="FR(zero flag)の初期値", metavar="n")
+    parser.add_argument("--set-sf", type=base_int, default=0,
+            help="FR(sign flag)の初期値", metavar="n")
+    parser.add_argument("--set-of", type=base_int, default=0,
+            help="FR(overflow flag)の初期値", metavar="n")
 
-    # レジスタ、メモリの値はデフォルトでは不定（ただし、実際は0で初期化する）
+    # レジスタ、メモリの値はデフォルトでは0
 
     args = parser.parse_args()
+
+    if args.rand_seed is not None:
+        random.seed(args.rand_seed)
 
     p = Parser()
     if args.asmfile is not None:
@@ -637,7 +660,7 @@ def main():
     start = p.get_start()
     end = p.get_end()
 
-    if args.emit_mem:
+    if args.emit_bin:
         width = 8
         for i in range(len(mem)):
             rest = i % width
@@ -650,9 +673,13 @@ def main():
             print("")
         return
 
-    c = Comet2(mem)
-    outputf = sys.stdout
-    c.run(start, end, outputf, outputf, sys.stdin)
+    c = Comet2(mem, args.rand_mem)
+    grlist = [args.set_gr0, args.set_gr1, args.set_gr2, args.set_gr3,
+            args.set_gr4, args.set_gr5, args.set_gr6, args.set_gr7]
+    c.init_regs(grlist, args.set_sp, args.set_zf, args.set_sf, args.set_of)
+    c.run(start, end, sys.stdout, sys.stdout, sys.stdin)
+    for m in c._mem:
+        print(m)
 
 if __name__ == "__main__":
     main()
