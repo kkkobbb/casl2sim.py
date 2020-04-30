@@ -1,3 +1,5 @@
+; 適当に値の代入、コピー
+
 TEST START
 	LAD GR6,16
 	ST GR6,14

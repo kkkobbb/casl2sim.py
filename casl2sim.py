@@ -408,8 +408,8 @@ class Comet2:
             return
         if len_mem > Comet2.MEM_SIZE:
             err_exit("memory over")
-        rest_mem = [Element(0, 0) for _ in range(Comet2.MEM_SIZE - len_mem)]
-        self._mem.extend(rest_mem)
+        padding = [Element(0, 0) for _ in range(Comet2.MEM_SIZE - len_mem)]
+        self._mem.extend(padding)
 
     def run(self, start, end, outputf=None, debugf=None, inputf=None):
         self._outputf = outputf
@@ -491,7 +491,8 @@ class Comet2:
         self._zf = int(val == 0)
         self._sf = (val&0x8000) >> 15
         self.set_gr(opr1, val)
-        self.output_debug(elem.line, f"GR{opr1} <- MEM[{adr:04x}]={val:04x} (ZF <- {self._zf}, SF <- {self._sf})")
+        self.output_debug(elem.line,
+                f"GR{opr1} <- MEM[{adr:04x}]={val:04x} (ZF <- {self._zf}, SF <- {self._sf})")
 
     def op_ST(self, elem):
         code1 = elem.value
