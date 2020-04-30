@@ -163,6 +163,7 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(0x0002, 0),
                 casl2sim.Element(0x0008, 0)]
         c = casl2sim.Comet2(mem)
+        c._of = 0
         c._gr[1] = 2
         expected = c._gr[:]
         expected[1] = 10
@@ -179,6 +180,7 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(0x0002, 0),
                 casl2sim.Element(0xffff, 0)]
         c = casl2sim.Comet2(mem)
+        c._of = 0
         c._gr[1] = 0x8000
         expected = c._gr[:]
         expected[1] = 0x7fff
@@ -195,6 +197,7 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(0x0002, 0),
                 casl2sim.Element(0x7fff, 0)]
         c = casl2sim.Comet2(mem)
+        c._of = 0
         c._gr[1] = 0x7fff
         expected = c._gr[:]
         expected[1] = 0xfffe
@@ -208,6 +211,7 @@ class TestComet2(unittest.TestCase):
     def test_op_ADDA_REG(self):
         mem = [casl2sim.Element(0x2416, 0)]
         c = casl2sim.Comet2(mem)
+        c._of = 0
         c._gr[1] = 2
         c._gr[6] = 5
         expected = c._gr[:]
@@ -225,6 +229,7 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(0x0002, 0),
                 casl2sim.Element(0x0008, 0)]
         c = casl2sim.Comet2(mem)
+        c._of = 0
         c._gr[1] = 2
         expected = c._gr[:]
         expected[1] = (-6) & 0xffff
@@ -241,6 +246,7 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(0x0002, 0),
                 casl2sim.Element(0xf000, 0)]
         c = casl2sim.Comet2(mem)
+        c._of = 0
         c._gr[1] = 0x7000
         expected = c._gr[:]
         expected[1] = 0x8000
@@ -257,6 +263,7 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(0x0002, 0),
                 casl2sim.Element(0x7000, 0)]
         c = casl2sim.Comet2(mem)
+        c._of = 0
         c._gr[1] = 0x8001
         expected = c._gr[:]
         expected[1] = 0x1001
@@ -270,12 +277,145 @@ class TestComet2(unittest.TestCase):
     def test_op_SUBA_REG(self):
         mem = [casl2sim.Element(0x2516, 0)]
         c = casl2sim.Comet2(mem)
+        c._of = 0
         c._gr[1] = 2
         c._gr[6] = 5
         expected = c._gr[:]
         expected[1] = (-3) & 0xffff
         elem = c.fetch()
         c.op_SUBA_REG(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(0, c._zf)
+        self.assertEqual(1, c._sf)
+        self.assertEqual(0, c._of)
+
+    def test_op_ADDL(self):
+        mem = [
+                casl2sim.Element(0x2210, 0),
+                casl2sim.Element(0x0002, 0),
+                casl2sim.Element(0x0008, 0)]
+        c = casl2sim.Comet2(mem)
+        c._of = 0
+        c._gr[1] = 2
+        expected = c._gr[:]
+        expected[1] = 10
+        elem = c.fetch()
+        c.op_ADDL(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(0, c._zf)
+        self.assertEqual(0, c._sf)
+        self.assertEqual(0, c._of)
+
+    def test_op_ADDL_overflow1(self):
+        mem = [
+                casl2sim.Element(0x2210, 0),
+                casl2sim.Element(0x0002, 0),
+                casl2sim.Element(0xffff, 0)]
+        c = casl2sim.Comet2(mem)
+        c._of = 0
+        c._gr[1] = 0x8000
+        expected = c._gr[:]
+        expected[1] = 0x7fff
+        elem = c.fetch()
+        c.op_ADDL(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(0, c._zf)
+        self.assertEqual(0, c._sf)
+        self.assertEqual(0, c._of)
+
+    def test_op_ADDL_overflow2(self):
+        mem = [
+                casl2sim.Element(0x2210, 0),
+                casl2sim.Element(0x0002, 0),
+                casl2sim.Element(0x7fff, 0)]
+        c = casl2sim.Comet2(mem)
+        c._of = 0
+        c._gr[1] = 0x7fff
+        expected = c._gr[:]
+        expected[1] = 0xfffe
+        elem = c.fetch()
+        c.op_ADDL(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(0, c._zf)
+        self.assertEqual(1, c._sf)
+        self.assertEqual(0, c._of)
+
+    def test_op_ADDL_REG(self):
+        mem = [casl2sim.Element(0x2616, 0)]
+        c = casl2sim.Comet2(mem)
+        c._of = 0
+        c._gr[1] = 2
+        c._gr[6] = 5
+        expected = c._gr[:]
+        expected[1] = 7
+        elem = c.fetch()
+        c.op_ADDL_REG(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(0, c._zf)
+        self.assertEqual(0, c._sf)
+        self.assertEqual(0, c._of)
+
+    def test_op_SUBL(self):
+        mem = [
+                casl2sim.Element(0x2110, 0),
+                casl2sim.Element(0x0002, 0),
+                casl2sim.Element(0x0008, 0)]
+        c = casl2sim.Comet2(mem)
+        c._of = 0
+        c._gr[1] = 2
+        expected = c._gr[:]
+        expected[1] = (-6) & 0xffff
+        elem = c.fetch()
+        c.op_SUBL(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(0, c._zf)
+        self.assertEqual(1, c._sf)
+        self.assertEqual(0, c._of)
+
+    def test_op_SUBL_overflow1(self):
+        mem = [
+                casl2sim.Element(0x2110, 0),
+                casl2sim.Element(0x0002, 0),
+                casl2sim.Element(0xf000, 0)]
+        c = casl2sim.Comet2(mem)
+        c._of = 0
+        c._gr[1] = 0x7000
+        expected = c._gr[:]
+        expected[1] = 0x8000
+        elem = c.fetch()
+        c.op_SUBL(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(0, c._zf)
+        self.assertEqual(1, c._sf)
+        self.assertEqual(0, c._of)
+
+    def test_op_SUBL_overflow2(self):
+        mem = [
+                casl2sim.Element(0x2110, 0),
+                casl2sim.Element(0x0002, 0),
+                casl2sim.Element(0x7000, 0)]
+        c = casl2sim.Comet2(mem)
+        c._of = 0
+        c._gr[1] = 0x8001
+        expected = c._gr[:]
+        expected[1] = 0x1001
+        elem = c.fetch()
+        c.op_SUBL(elem)
+        self.assertEqual(expected, c._gr)
+        self.assertEqual(0, c._zf)
+        self.assertEqual(0, c._sf)
+        self.assertEqual(0, c._of)
+
+    def test_op_SUBL_REG(self):
+        mem = [casl2sim.Element(0x2516, 0)]
+        c = casl2sim.Comet2(mem)
+        c._of = 0
+        c._gr[1] = 2
+        c._gr[6] = 5
+        expected = c._gr[:]
+        expected[1] = (-3) & 0xffff
+        elem = c.fetch()
+        c.op_SUBL_REG(elem)
         self.assertEqual(expected, c._gr)
         self.assertEqual(0, c._zf)
         self.assertEqual(1, c._sf)
@@ -380,7 +520,7 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(ord("T"), 0),
                 casl2sim.Element(ord("Y"), 0),
                 casl2sim.Element(ord("Y"), 0)]
-        expected = "OUT: test OUT\n"
+        expected = "  OUT: test OUT\n"
         c = casl2sim.Comet2(mem)
         c._outputf = io.StringIO()
         c._gr[1] = 4

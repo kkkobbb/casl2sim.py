@@ -85,7 +85,7 @@ class Parser:
 
     def set_actual_label(self, label, line_num):
         if label in self._actual_labels:
-            self.err_exit(f"defined label ({self._line_num}: {label})")
+            self.err_exit(f"defined label (L{self._line_num}: {label})")
         self._actual_labels[label] = line_num
 
     def add_unresolved_const(self, const, elem):
@@ -129,7 +129,7 @@ class Parser:
             line_ = m.group(2)
         m = re.match(RE_OP, line_)
         if m is None:
-            self.err_exit(f"syntax error [bad format] ({self._line_num})")
+            self.err_exit(f"syntax error [bad format] (L{self._line_num})")
         tokens = line_.strip().split()
         op = tokens[0]
         if op == "DC":
@@ -146,7 +146,7 @@ class Parser:
     def parse_macro(self, op, args):
         if op == "IN":
             if len(args) != 2:
-                self.err_exit(f"bad args ({self._line_num})")
+                self.err_exit(f"bad args (L{self._line_num})")
             mem_part = self.parse_op("PUSH", ["0", "GR1"])
             mem_part.extend(self.parse_op("PUSH", ["0", "GR2"]))
             mem_part.extend(self.parse_op("LAD", ["GR1", args[0]]))
@@ -157,7 +157,7 @@ class Parser:
             return mem_part
         elif op == "OUT":
             if len(args) != 2:
-                self.err_exit(f"bad args ({self._line_num})")
+                self.err_exit(f"bad args (L{self._line_num})")
             mem_part = self.parse_op("PUSH", ["0", "GR1"])
             mem_part.extend(self.parse_op("PUSH", ["0", "GR2"]))
             mem_part.extend(self.parse_op("LAD", ["GR1", args[0]]))
@@ -168,7 +168,7 @@ class Parser:
             return mem_part
         elif op == "RPUSH":
             if len(args) != 0:
-                self.err_exit(f"bad args ({self._line_num})")
+                self.err_exit(f"bad args (L{self._line_num})")
             mem_part = self.parse_op("PUSH", ["0", "GR1"])
             mem_part = self.parse_op("PUSH", ["0", "GR2"])
             mem_part = self.parse_op("PUSH", ["0", "GR3"])
@@ -179,7 +179,7 @@ class Parser:
             return mem_part
         elif op == "RPOP":
             if len(args) != 0:
-                self.err_exit(f"bad args ({self._line_num})")
+                self.err_exit(f"bad args (L{self._line_num})")
             mem_part.extend(self.parse_op("POP", ["GR7"]))
             mem_part.extend(self.parse_op("POP", ["GR6"]))
             mem_part.extend(self.parse_op("POP", ["GR5"]))
@@ -268,8 +268,8 @@ class Parser:
             return [Element(0, self._line_num) for _ in range(size)]
         elif op == "DC":
             # not reached
-            self.err_exit(f"internal error DC ({self._line_num})")
-        self.err_exit(f"unknown operation ({self._line_num}: {op})")
+            self.err_exit(f"internal error DC (L{self._line_num})")
+        self.err_exit(f"unknown operation (L{self._line_num}: {op})")
 
     def parse_DC(self, line):
         args = re.sub(RE_DC, "", line)
@@ -280,7 +280,7 @@ class Parser:
         mem_part = self.parse_DC_arg(arg)
         while len(args) != 0:
             if args[0] != ",":
-                self.err_exit(f"syntax error [','] ({self._line_num})")
+                self.err_exit(f"syntax error [','] (L{self._line_num})")
             args = args[1:].strip()
             m = re.match(RE_DC_ARG, args)
             arg = m.group(1)
@@ -338,14 +338,14 @@ class Parser:
         opr3_arg = None
         if args[0] in self.REG_NAME_LIST:
             if without_opr1:
-                self.err_exit(f"syntax error [many reg arg] ({self._line_num})")
+                self.err_exit(f"syntax error [many reg arg] (L{self._line_num})")
             opr1 = self.reg(args[0])
             opr2 = args[1]
             if len(args) >3:
                 opr3_arg = args[2]
         else:
             if not without_opr1:
-                self.err_exit(f"syntax error [no reg arg] ({self._line_num})")
+                self.err_exit(f"syntax error [no reg arg] (L{self._line_num})")
             opr2 = args[0]
             if len(args) >= 2:
                 opr3_arg = args[1]
@@ -356,7 +356,7 @@ class Parser:
     zero = ord("0")
     def reg(self, regname):
         if regname not in self.REG_NAME_LIST:
-            self.err_exit(f"no register name ({self._line_num}: {regname})")
+            self.err_exit(f"no register name (L{self._line_num}: {regname})")
         return ord(regname[2]) - self.zero
 
     def mk_1word(self, opcode, operand1, operand2):
@@ -593,10 +593,26 @@ class Comet2:
                 f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_ADDL(self, elem):
-        pass
+        reg, adr = self.get_reg_adr(elem)
+        v1 = self.get_gr(reg)
+        v2 = self.get_mem(adr)
+        r = (v1 + v2) & 0xffff
+        self.flag_ADD(v1, v2, r, False)
+        self.set_gr(reg, r)
+        self.output_debug(elem.line,
+                f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} + MEM[{adr:04x}]={v2:04x}> " +
+                f"(ZF <- {self._zf}, SF <- {self._sf})")
 
     def op_SUBL(self, elem):
-        pass
+        reg, adr = self.get_reg_adr(elem)
+        v1 = self.get_gr(reg)
+        v2 = self.get_mem(adr)
+        r = (v1 - v2) & 0xffff
+        self.flag_SUB(v1, v2, r, False)
+        self.set_gr(reg, r)
+        self.output_debug(elem.line,
+                f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} - MEM[{adr:04x}]={v2:04x}> " +
+                f"(ZF <- {self._zf}, SF <- {self._sf})")
 
     def op_ADDA_REG(self, elem):
         code = elem.value
@@ -623,10 +639,29 @@ class Comet2:
                 f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_ADDL_REG(self, elem):
-        pass
+        code = elem.value
+        _, reg1, reg2 = self.decode_1word(code)
+        v1 = self.get_gr(reg1)
+        v2 = self.get_gr(reg2)
+        r = (v1 + v2) & 0xffff
+        self.flag_ADD(v1, v2, r, False)
+        self.set_gr(reg1, r)
+        self.output_debug(elem.line,
+                f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} + GR{reg2}={v2:04x}> " +
+                f"(ZF <- {self._zf}, SF <- {self._sf})")
 
     def op_SUBL_REG(self, elem):
-        pass
+        code = elem.value
+        _, reg1, reg2 = self.decode_1word(code)
+        v1 = self.get_gr(reg1)
+        v2 = self.get_gr(reg2)
+        r = (v1 - v2) & 0xffff
+        self.flag_SUB(v1, v2, r, False)
+        self.set_gr(reg1, r)
+        self.output_debug(elem.line,
+                f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} - GR{reg2}={v2:04x}> " +
+                f"(ZF <- {self._zf}, SF <- {self._sf})")
+
 
 
 

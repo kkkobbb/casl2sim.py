@@ -1,14 +1,28 @@
 ; 算術加算 算術減算 論理加算 論理減算
 
 A START
+ ; 算術加算
  LAD GR1,9
  ADDA GR1,=12
  LAD GR2,20
  LAD GR3,30
  ADDA GR2,GR3
+ ; 算術減算
  LAD GR1,5
  SUBA GR1,=9
  LAD GR4,55
  LAD GR5,32
  SUBA GR4,GR5
+ ; 論理加算
+ LAD GR2,2
+ ADDL GR2,=10
+ LAD GR6,4
+ LAD GR7,5
+ ADDL GR6,GR7
+ ; 論理減算
+ LAD GR4,99
+ SUBL GR4,=88
+ LAD GR0,31
+ LAD GR1,13
+ SUBL GR0,GR1
  END
