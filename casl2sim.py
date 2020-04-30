@@ -62,6 +62,9 @@ class Parser:
             self._mem.extend(self.parse_line(line))
         if self._end < 0:
             err_exit("syntex error not found 'END'")
+        if len(self._mem) > self._end:
+            # ENDはプログラムの最後に記述する
+            err_exit(f"syntax error: 'END' must be last")
         self.resolve_labels()
         self.resolve_consts()
 
@@ -420,7 +423,7 @@ class Comet2:
         elem = self.fetch()
         op = (elem.value & 0xff00) >> 8
         if op not in self.OP_TABLE:
-            err_exit(f"unknown operation ([{self._pr - 1:04x}]: {elem.value})")
+            err_exit(f"unknown operation ([{self._pr - 1:04x}]: {elem.value:04x})")
         op_func = self.OP_TABLE[op]
         op_func(elem)
 
@@ -632,9 +635,6 @@ def main():
     mem = p.get_mem()
     start = p.get_start()
     end = p.get_end()
-    if len(mem) > end:
-        # ENDはプログラムの最後に記述する
-        err_exit(f"syntax error: 'END' must be last")
 
     if args.emit_mem:
         width = 8
