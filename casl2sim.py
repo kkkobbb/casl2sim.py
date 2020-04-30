@@ -549,8 +549,7 @@ class Comet2:
         self.output_debug(elem.line, f"GR{reg} <- {adr:04x}")
 
     def op_LD_REG(self, elem):
-        code = elem.value
-        _, reg1, reg2 = self.decode_1word(code)
+        _, reg1, reg2 = self.decode_1word(elem.value)
         val = self.get_gr(reg2)
         self._zf = int(val == 0)
         self._sf = (val&0x8000) >> 15
@@ -626,8 +625,7 @@ class Comet2:
                 f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_ADDA_REG(self, elem):
-        code = elem.value
-        _, reg1, reg2 = self.decode_1word(code)
+        _, reg1, reg2 = self.decode_1word(elem.value)
         v1 = self.get_gr(reg1)
         v2 = self.get_gr(reg2)
         r = self.add_flag(v1, v2)
@@ -637,8 +635,7 @@ class Comet2:
                 f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_SUBA_REG(self, elem):
-        code = elem.value
-        _, reg1, reg2 = self.decode_1word(code)
+        _, reg1, reg2 = self.decode_1word(elem.value)
         v1 = self.get_gr(reg1)
         v2 = self.get_gr(reg2)
         r = self.sub_flag(v1, v2)
@@ -648,8 +645,7 @@ class Comet2:
                 f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_ADDL_REG(self, elem):
-        code = elem.value
-        _, reg1, reg2 = self.decode_1word(code)
+        _, reg1, reg2 = self.decode_1word(elem.value)
         v1 = self.get_gr(reg1)
         v2 = self.get_gr(reg2)
         r = self.add_flag(v1, v2, False)
@@ -659,8 +655,7 @@ class Comet2:
                 f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_SUBL_REG(self, elem):
-        code = elem.value
-        _, reg1, reg2 = self.decode_1word(code)
+        _, reg1, reg2 = self.decode_1word(elem.value)
         v1 = self.get_gr(reg1)
         v2 = self.get_gr(reg2)
         r = self.sub_flag(v1, v2, False)
@@ -669,23 +664,72 @@ class Comet2:
                 f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} -L GR{reg2}={v2:04x}> " +
                 f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
+    def bit_flag(self, op, v1, v2):
+        r = op(v1, v2)
+        self._zf = int(r == 0)
+        self._sf = 0
+        self._of = 0
+        return r & 0xffff
+
     def op_AND(self, elem):
-        pass
+        reg, adr = self.get_reg_adr(elem)
+        v1 = self.get_gr(reg)
+        v2 = self.get_mem(adr)
+        r = self.bit_flag(lambda v1, v2: v1 & v2, v1, v2)
+        self.set_gr(reg, r)
+        self.output_debug(elem.line,
+                f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} & MEM[{adr:04x}]={v2:04x}> " +
+                f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_OR(self, elem):
-        pass
+        reg, adr = self.get_reg_adr(elem)
+        v1 = self.get_gr(reg)
+        v2 = self.get_mem(adr)
+        r = self.bit_flag(lambda v1, v2: v1 | v2, v1, v2)
+        self.set_gr(reg, r)
+        self.output_debug(elem.line,
+                f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} | MEM[{adr:04x}]={v2:04x}> " +
+                f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_XOR(self, elem):
-        pass
+        reg, adr = self.get_reg_adr(elem)
+        v1 = self.get_gr(reg)
+        v2 = self.get_mem(adr)
+        r = self.bit_flag(lambda v1, v2: v1 ^ v2, v1, v2)
+        self.set_gr(reg, r)
+        self.output_debug(elem.line,
+                f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} ^ MEM[{adr:04x}]={v2:04x}> " +
+                f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_AND_REG(self, elem):
-        pass
+        _, reg1, reg2 = self.decode_1word(elem.value)
+        v1 = self.get_gr(reg1)
+        v2 = self.get_gr(reg2)
+        r = self.bit_flag(lambda v1, v2: v1 & v2, v1, v2)
+        self.set_gr(reg1, r)
+        self.output_debug(elem.line,
+                f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} & GR{reg2}={v2:04x}> " +
+                f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_OR_REG(self, elem):
-        pass
+        _, reg1, reg2 = self.decode_1word(elem.value)
+        v1 = self.get_gr(reg1)
+        v2 = self.get_gr(reg2)
+        r = self.bit_flag(lambda v1, v2: v1 | v2, v1, v2)
+        self.set_gr(reg1, r)
+        self.output_debug(elem.line,
+                f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} | GR{reg2}={v2:04x}> " +
+                f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_XOR_REG(self, elem):
-        pass
+        _, reg1, reg2 = self.decode_1word(elem.value)
+        v1 = self.get_gr(reg1)
+        v2 = self.get_gr(reg2)
+        r = self.bit_flag(lambda v1, v2: v1 ^ v2, v1, v2)
+        self.set_gr(reg1, r)
+        self.output_debug(elem.line,
+                f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} ^ GR{reg2}={v2:04x}> " +
+                f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_CPA(self, elem):
         reg, adr = self.get_reg_adr(elem)
@@ -706,8 +750,7 @@ class Comet2:
                 f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_CPA_REG(self, elem):
-        code = elem.value
-        _, reg1, reg2 = self.decode_1word(code)
+        _, reg1, reg2 = self.decode_1word(elem.value)
         v1 = self.get_gr(reg1)
         v2 = self.get_gr(reg2)
         self.sub_flag(v1, v2)
@@ -716,8 +759,7 @@ class Comet2:
                 f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_CPL_REG(self, elem):
-        code = elem.value
-        _, reg1, reg2 = self.decode_1word(code)
+        _, reg1, reg2 = self.decode_1word(elem.value)
         v1 = self.get_gr(reg1)
         v2 = self.get_gr(reg2)
         self.sub_flag(v1, v2, False)
