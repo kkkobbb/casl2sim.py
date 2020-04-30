@@ -321,7 +321,7 @@ class TestComet2(unittest.TestCase):
         self.assertEqual(expected, c._gr)
         self.assertEqual(0, c._zf)
         self.assertEqual(0, c._sf)
-        self.assertEqual(0, c._of)
+        self.assertEqual(1, c._of)
 
     def test_op_ADDL_overflow2(self):
         mem = [
@@ -337,7 +337,7 @@ class TestComet2(unittest.TestCase):
         c.op_ADDL(elem)
         self.assertEqual(expected, c._gr)
         self.assertEqual(0, c._zf)
-        self.assertEqual(1, c._sf)
+        self.assertEqual(0, c._sf)
         self.assertEqual(0, c._of)
 
     def test_op_ADDL_REG(self):
@@ -369,8 +369,8 @@ class TestComet2(unittest.TestCase):
         c.op_SUBL(elem)
         self.assertEqual(expected, c._gr)
         self.assertEqual(0, c._zf)
-        self.assertEqual(1, c._sf)
-        self.assertEqual(0, c._of)
+        self.assertEqual(0, c._sf)
+        self.assertEqual(1, c._of)
 
     def test_op_SUBL_overflow1(self):
         mem = [
@@ -386,8 +386,8 @@ class TestComet2(unittest.TestCase):
         c.op_SUBL(elem)
         self.assertEqual(expected, c._gr)
         self.assertEqual(0, c._zf)
-        self.assertEqual(1, c._sf)
-        self.assertEqual(0, c._of)
+        self.assertEqual(0, c._sf)
+        self.assertEqual(1, c._of)
 
     def test_op_SUBL_overflow2(self):
         mem = [
@@ -418,8 +418,8 @@ class TestComet2(unittest.TestCase):
         c.op_SUBL_REG(elem)
         self.assertEqual(expected, c._gr)
         self.assertEqual(0, c._zf)
-        self.assertEqual(1, c._sf)
-        self.assertEqual(0, c._of)
+        self.assertEqual(0, c._sf)
+        self.assertEqual(1, c._of)
 
 
 

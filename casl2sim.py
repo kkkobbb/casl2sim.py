@@ -400,6 +400,11 @@ class Comet2:
                 0x23:self.op_SUBL, 0x24:self.op_ADDA_REG,
                 0x25:self.op_SUBA_REG, 0x26:self.op_ADDL_REG,
                 0x27:self.op_SUBL_REG,
+                0x30:self.op_AND, 0x31:self.op_OR, 0x32:self.op_XOR,
+                0x34:self.op_AND_REG, 0x35:self.op_OR_REG,
+                0x36:self.op_XOR_REG,
+                0x40:self.op_CPA, 0x41:self.op_CPL, 0x44:self.op_CPA_REG,
+                0x45:self.op_CPL_REG,
                 0xf0:self.op_SVC}
         self._print_regs = print_regs
 
@@ -552,30 +557,39 @@ class Comet2:
         self.set_gr(reg1, val)
         self.output_debug(elem.line, f"GR{reg1} <- GR{reg2}={val:04x} (ZF <- {self._zf}, SF <- {self._sf})")
 
-    def flag_ADD(self, v1, v2, r, arithmetic=True):
-        sr = r & 0x8000
+    def add_flag(self, v1, v2, arithmetic=True):
+        r = v1 + v2
         self._zf = int(r == 0)
-        self._sf = sr >> 15
         if arithmetic:
+            sr = r & 0x8000
             sv1 = v1 & 0x8000
             sv2 = v2 & 0x8000
+            self._sf = sr >> 15
             self._of = ((~(sv1 ^ sv2)) & (sv1 ^ sr)) >> 15
+        else:
+            self._sf = 0
+            self._of = int(r > 0xffff)
+        return r & 0xffff
 
-    def flag_SUB(self, v1, v2, r, arithmetic=True):
-        sr = r & 0x8000
+    def sub_flag(self, v1, v2, arithmetic=True):
+        r = v1 - v2
         self._zf = int(r == 0)
-        self._sf = sr >> 15
         if arithmetic:
+            sr = r & 0x8000
             sv1 = v1 & 0x8000
             sv2 = v2 & 0x8000
+            self._sf = sr >> 15
             self._of = ((sv1 ^ sv2) & (sv1 ^ sr)) >> 15
+        else:
+            self._sf = 0
+            self._of = int(v1 < v2)
+        return r & 0xffff
 
     def op_ADDA(self, elem):
         reg, adr = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
-        r = (v1 + v2) & 0xffff
-        self.flag_ADD(v1, v2, r)
+        r = self.add_flag(v1, v2)
         self.set_gr(reg, r)
         self.output_debug(elem.line,
                 f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} + MEM[{adr:04x}]={v2:04x}> " +
@@ -585,8 +599,7 @@ class Comet2:
         reg, adr = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
-        r = (v1 - v2) & 0xffff
-        self.flag_SUB(v1, v2, r)
+        r = self.sub_flag(v1, v2)
         self.set_gr(reg, r)
         self.output_debug(elem.line,
                 f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} - MEM[{adr:04x}]={v2:04x}> " +
@@ -596,8 +609,7 @@ class Comet2:
         reg, adr = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
-        r = (v1 + v2) & 0xffff
-        self.flag_ADD(v1, v2, r, False)
+        r = self.add_flag(v1, v2, False)
         self.set_gr(reg, r)
         self.output_debug(elem.line,
                 f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} + MEM[{adr:04x}]={v2:04x}> " +
@@ -607,8 +619,7 @@ class Comet2:
         reg, adr = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
-        r = (v1 - v2) & 0xffff
-        self.flag_SUB(v1, v2, r, False)
+        r = self.sub_flag(v1, v2, False)
         self.set_gr(reg, r)
         self.output_debug(elem.line,
                 f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} - MEM[{adr:04x}]={v2:04x}> " +
@@ -619,8 +630,7 @@ class Comet2:
         _, reg1, reg2 = self.decode_1word(code)
         v1 = self.get_gr(reg1)
         v2 = self.get_gr(reg2)
-        r = v1 + v2
-        self.flag_ADD(v1, v2, r)
+        r = self.add_flag(v1, v2)
         self.set_gr(reg1, r)
         self.output_debug(elem.line,
                 f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} + GR{reg2}={v2:04x}> " +
@@ -631,8 +641,7 @@ class Comet2:
         _, reg1, reg2 = self.decode_1word(code)
         v1 = self.get_gr(reg1)
         v2 = self.get_gr(reg2)
-        r = (v1 - v2) & 0xffff
-        self.flag_SUB(v1, v2, r)
+        r = self.sub_flag(v1, v2)
         self.set_gr(reg1, r)
         self.output_debug(elem.line,
                 f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} - GR{reg2}={v2:04x}> " +
@@ -643,8 +652,7 @@ class Comet2:
         _, reg1, reg2 = self.decode_1word(code)
         v1 = self.get_gr(reg1)
         v2 = self.get_gr(reg2)
-        r = (v1 + v2) & 0xffff
-        self.flag_ADD(v1, v2, r, False)
+        r = self.add_flag(v1, v2, False)
         self.set_gr(reg1, r)
         self.output_debug(elem.line,
                 f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} + GR{reg2}={v2:04x}> " +
@@ -655,12 +663,49 @@ class Comet2:
         _, reg1, reg2 = self.decode_1word(code)
         v1 = self.get_gr(reg1)
         v2 = self.get_gr(reg2)
-        r = (v1 - v2) & 0xffff
-        self.flag_SUB(v1, v2, r, False)
+        r = self.sub_flag(v1, v2, False)
         self.set_gr(reg1, r)
         self.output_debug(elem.line,
                 f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} - GR{reg2}={v2:04x}> " +
                 f"(ZF <- {self._zf}, SF <- {self._sf})")
+
+    def flag_bit(self, v1, v2, r):
+        self._zf = int(r == 0)
+        self._sf = (r&0x8000) >> 15
+
+    def op_AND(self, elem):
+        pass
+
+    def op_OR(self, elem):
+        pass
+
+    def op_XOR(self, elem):
+        pass
+
+    def op_AND_REG(self, elem):
+        pass
+
+    def op_OR_REG(self, elem):
+        pass
+
+    def op_XOR_REG(self, elem):
+        pass
+
+    def op_CPA(self, elem):
+        pass
+
+    def op_CPL(self, elem):
+        pass
+
+    def op_CPA_REG(self, elem):
+        pass
+
+    def op_CPL_REG(self, elem):
+        pass
+
+
+
+
 
 
 
