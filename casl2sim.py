@@ -29,10 +29,6 @@ class Element:
     def __str__(self):
         return f"(value={self.value:04x}, line={self.line})"
 
-def err_exit(msg):
-    print(f"Error: {msg}", file=sys.stderr)
-    sys.exit(1)
-
 class Parser:
     REG_NAME_LIST = ["GR0", "GR1", "GR2", "GR3", "GR4", "GR5", "GR6", "GR7"]
 
@@ -62,12 +58,16 @@ class Parser:
             self._line_num += 1
             self._mem.extend(self.parse_line(line))
         if self._end < 0:
-            err_exit("syntex error not found 'END'")
+            self.err_exit("syntax error [not found 'END']")
         if len(self._mem) > self._end:
             # ENDはプログラムの最後に記述する
-            err_exit(f"syntax error: 'END' must be last")
+            self.err_exit(f"syntax error ['END' must be last]")
         self.resolve_labels()
         self.resolve_consts()
+
+    def err_exit(self, msg):
+        print(f"Assemble Error: {msg}", file=sys.stderr)
+        sys.exit(1)
 
     def get_mem(self):
         return self._mem[:]
@@ -85,7 +85,7 @@ class Parser:
 
     def set_actual_label(self, label, line_num):
         if label in self._actual_labels:
-            err_exit(f"defined label ({self._line_num}: {label})")
+            self.err_exit(f"defined label ({self._line_num}: {label})")
         self._actual_labels[label] = line_num
 
     def add_unresolved_const(self, const, elem):
@@ -96,14 +96,14 @@ class Parser:
     def resolve_labels(self):
         if self._start_label is not None:
             if self._start_label in self._actual_labels:
-                err_exit(f"undefined label ({self._start_label})")
+                self.err_exit(f"undefined label ({self._start_label})")
             self._start = self._actual_labels[self._start_label]
         for label, elemlist in self._unresolved_labels.items():
             if label not in self._actual_labels:
-                err_exit(f"undefined label ({label})")
+                self.err_exit(f"undefined label ({label})")
             addr = self._actual_labels[label]
             if addr is None:
-                err_exit(f"reserved label ({label})")
+                self.err_exit(f"reserved label ({label})")
             addr = addr & 0xffff
             for elem in elemlist:
                 elem.value = addr
@@ -129,7 +129,7 @@ class Parser:
             line_ = m.group(2)
         m = re.match(RE_OP, line_)
         if m is None:
-            err_exit(f"syntax error: bad format ({self._line_num})")
+            self.err_exit(f"syntax error [bad format] ({self._line_num})")
         tokens = line_.strip().split()
         op = tokens[0]
         if op == "DC":
@@ -146,7 +146,7 @@ class Parser:
     def parse_macro(self, op, args):
         if op == "IN":
             if len(args) != 2:
-                err_exit(f"bad args ({self._line_num})")
+                self.err_exit(f"bad args ({self._line_num})")
             mem_part = self.parse_op("PUSH", ["0", "GR1"])
             mem_part.extend(self.parse_op("PUSH", ["0", "GR2"]))
             mem_part.extend(self.parse_op("LAD", ["GR1", args[0]]))
@@ -157,7 +157,7 @@ class Parser:
             return mem_part
         elif op == "OUT":
             if len(args) != 2:
-                err_exit(f"bad args ({self._line_num})")
+                self.err_exit(f"bad args ({self._line_num})")
             mem_part = self.parse_op("PUSH", ["0", "GR1"])
             mem_part.extend(self.parse_op("PUSH", ["0", "GR2"]))
             mem_part.extend(self.parse_op("LAD", ["GR1", args[0]]))
@@ -168,7 +168,7 @@ class Parser:
             return mem_part
         elif op == "RPUSH":
             if len(args) != 0:
-                err_exit(f"bad args ({self._line_num})")
+                self.err_exit(f"bad args ({self._line_num})")
             mem_part = self.parse_op("PUSH", ["0", "GR1"])
             mem_part = self.parse_op("PUSH", ["0", "GR2"])
             mem_part = self.parse_op("PUSH", ["0", "GR3"])
@@ -179,7 +179,7 @@ class Parser:
             return mem_part
         elif op == "RPOP":
             if len(args) != 0:
-                err_exit(f"bad args ({self._line_num})")
+                self.err_exit(f"bad args ({self._line_num})")
             mem_part.extend(self.parse_op("POP", ["GR7"]))
             mem_part.extend(self.parse_op("POP", ["GR6"]))
             mem_part.extend(self.parse_op("POP", ["GR5"]))
@@ -254,7 +254,7 @@ class Parser:
         elif op == "START":
             if len(self._mem) != 0:
                 # STARTはプログラムの最初に記述する
-                err_exit("syntax error: 'START' must be first")
+                self.err_exit("syntax error ['START' must be first]")
             if len(args) != 0:
                 self._start_label = args[0]
             else:
@@ -268,8 +268,8 @@ class Parser:
             return [Element(0, self._line_num) for _ in range(size)]
         elif op == "DC":
             # not reached
-            err_exit(f"internal error DC ({self._line_num})")
-        err_exit(f"unknown operation ({self._line_num}: {op})")
+            self.err_exit(f"internal error DC ({self._line_num})")
+        self.err_exit(f"unknown operation ({self._line_num}: {op})")
 
     def parse_DC(self, line):
         args = re.sub(RE_DC, "", line)
@@ -280,7 +280,7 @@ class Parser:
         mem_part = self.parse_DC_arg(arg)
         while len(args) != 0:
             if args[0] != ",":
-                err_exit(f"syntax error: ',' ({self._line_num})")
+                self.err_exit(f"syntax error [','] ({self._line_num})")
             args = args[1:].strip()
             m = re.match(RE_DC_ARG, args)
             arg = m.group(1)
@@ -338,14 +338,14 @@ class Parser:
         opr3_arg = None
         if args[0] in self.REG_NAME_LIST:
             if without_opr1:
-                err_exit(f"syntax error: many reg arg ({self._line_num})")
+                self.err_exit(f"syntax error [many reg arg] ({self._line_num})")
             opr1 = self.reg(args[0])
             opr2 = args[1]
             if len(args) >3:
                 opr3_arg = args[2]
         else:
             if not without_opr1:
-                err_exit(f"syntax error: no reg arg ({self._line_num})")
+                self.err_exit(f"syntax error [no reg arg] ({self._line_num})")
             opr2 = args[0]
             if len(args) >= 2:
                 opr3_arg = args[1]
@@ -356,7 +356,7 @@ class Parser:
     zero = ord("0")
     def reg(self, regname):
         if regname not in self.REG_NAME_LIST:
-            err_exit(f"no register name ({self._line_num}: {regname})")
+            self.err_exit(f"no register name ({self._line_num}: {regname})")
         return ord(regname[2]) - self.zero
 
     def mk_1word(self, opcode, operand1, operand2):
@@ -382,7 +382,7 @@ class Comet2:
     SVC_OP_IN = 1
     SVC_OP_OUT = 2
 
-    def __init__(self, mem, init_mem_rand=False):
+    def __init__(self, mem, init_mem_rand=False, print_regs=False):
         self._gr = [0] * Comet2.REG_NUM
         self._pr = 0
         self._sp = 0
@@ -401,6 +401,7 @@ class Comet2:
                 0x25:self.op_SUBA_REG, 0x26:self.op_ADDL_REG,
                 0x27:self.op_SUBL_REG,
                 0xf0:self.op_SVC}
+        self._print_regs = print_regs
 
     def init_mem(self, mem, init_mem_rand):
         self._mem = mem
@@ -408,7 +409,7 @@ class Comet2:
         if len_mem == Comet2.MEM_MAX:
             return
         if len_mem > Comet2.MEM_MAX:
-            err_exit("memory over")
+            self.err_exit("memory over")
         if init_mem_rand:
             padding = [Element(0, random.randint(0, 0xffff)) for _ in range(Comet2.MEM_MAX - len_mem)]
         else:
@@ -417,7 +418,7 @@ class Comet2:
 
     def init_regs(self, grlist, sp, zf, sf, of):
         if len(grlist) != Comet2.REG_NUM:
-            err_exit("internal error grlist")
+            self.err_exit("internal error grlist")
         self._gr = [gr&0xffff for gr in grlist]
         self._sp = sp & 0xffff
         self._zf = int(zf != 0)
@@ -431,6 +432,7 @@ class Comet2:
         self._pr = start
         while self._pr != end:
             self.operate_once()
+        self.output_regs()
 
     def operate_once(self):
         elem = self.fetch()
@@ -440,9 +442,14 @@ class Comet2:
                 lstr = ""
             else:
                 lstr = f"L{elem.line} "
-            err_exit(f"unknown operation ({lstr}[{self._pr - 1:04x}]: {elem.value:04x})")
+            self.err_exit(f"unknown operation ({lstr}[{self._pr - 1:04x}]: {elem.value:04x})")
         op_func = self.OP_TABLE[op]
         op_func(elem)
+
+    def err_exit(self, msg):
+        print(f"Runtime Error: {msg}", file=sys.stderr)
+        self.output_regs()
+        sys.exit(1)
 
     def output_debug(self, line_num, msg):
         if self._debugf is None:
@@ -458,24 +465,33 @@ class Comet2:
             return
         self._outputf.write(f"  OUT: {msg}\n")
 
+    def output_regs(self):
+        if not self._print_regs:
+            return
+        grlist = " ".join([f"GR{i}={gr:04x}" for i, gr in enumerate(self._gr)])
+        self._debugf.write("\nREG LIST\n")
+        self._debugf.write(f"  {grlist}\n")
+        self._debugf.write(f"  PR={self._pr:04x} SP={self._sp:04x}\n")
+        self._debugf.write(f"  ZF={self._zf} SF={self._sf} OF={self._of}\n")
+
     def get_gr(self, n):
         if n < 0 or Comet2.REG_NUM <= n:
-            err_exit("GR index out of range")
+            self.err_exit("GR index out of range")
         return self._gr[n]
 
     def set_gr(self, n, val):
         if n < 0 or Comet2.REG_NUM <= n:
-            err_exit("GR index out of range")
+            self.err_exit("GR index out of range")
         self._gr[n] = val & 0xffff
 
     def get_mem(self, adr):
         if adr < 0 or Comet2.MEM_MAX <= adr:
-            err_exit("MEM address out of range")
+            self.err_exit("MEM address out of range")
         return self._mem[adr].value
 
     def set_mem(self, adr, val):
         if adr < 0 or Comet2.MEM_MAX <= adr:
-            err_exit("MEM address out of range")
+            self.err_exit("MEM address out of range")
         self._mem[adr].value = val & 0xffff
         self._mem[adr].line = 0
 
@@ -622,11 +638,11 @@ class Comet2:
         elif code2 == Comet2.SVC_OP_OUT:
             self.op_SVC_OUT(elem)
         else:
-            err_exit(f"not implemented 'SVC {code2:04x}'")
+            self.err_exit(f"unknown SVC op 'SVC {code2:04x}'")
 
     def op_SVC_IN(self, elem):
         if self._inputf is None:
-            err_exit(f"no input source")
+            self.err_exit(f"no input source")
         start = self.get_gr(1)
         end = start + self.get_gr(2)
         self.output_debug(elem.line, "SVC IN")
@@ -684,6 +700,7 @@ def main():
             description=__doc__,
             formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("asmfile", help="casl2 code")
+    parser.add_argument("-p", "--print-regs", action="store_true", help="実行終了後レジスタの内容を表示する")
     parser.add_argument("--input-src", help="casl2での入力時の入力元", metavar="file")
     parser.add_argument("--output", help="casl2での出力先", metavar="file")
     parser.add_argument("--output-debug", help="casl2でのデバッグ出力先", metavar="file")
@@ -730,7 +747,7 @@ def main():
             print("")
         return
 
-    c = Comet2(mem, args.rand_mem)
+    c = Comet2(mem, args.rand_mem, args.print_regs)
     grlist = [args.set_gr0, args.set_gr1, args.set_gr2, args.set_gr3,
             args.set_gr4, args.set_gr5, args.set_gr6, args.set_gr7]
     c.init_regs(grlist, args.set_sp, args.set_zf, args.set_sf, args.set_of)
