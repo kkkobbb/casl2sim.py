@@ -29,13 +29,11 @@ class Element:
         return f"(value={self.value:04x}, line={self.line})"
 
 def err_exit(msg):
-    print(msg)
+    print(f"Error: {msg}")
     sys.exit(1)
 
 class Parser:
     REG_NAME_LIST = ["GR0", "GR1", "GR2", "GR3", "GR4", "GR5", "GR6", "GR7"]
-    SVC_OP_IN = 1
-    SVC_OP_OUT = 2
 
     def __init__(self):
         self._mem = []
@@ -127,7 +125,7 @@ class Parser:
             line_ = m.group(2)
         m = re.match(RE_OP, line_)
         if m is None:
-            err_exit(f"syntax error ({self._line_num})")
+            err_exit(f"syntax error: bad format ({self._line_num})")
         tokens = line_.strip().split()
         op = tokens[0]
         if op == "DC":
@@ -149,7 +147,7 @@ class Parser:
             mem_part.extend(self.parse_op("PUSH", ["0", "GR2"]))
             mem_part.extend(self.parse_op("LAD", ["GR1", args[0]]))
             mem_part.extend(self.parse_op("LAD", ["GR2", args[1]]))
-            mem_part.extend(self.parse_op("SVC", [str(self.SVC_OP_IN)]))
+            mem_part.extend(self.parse_op("SVC", [str(Comet2.SVC_OP_IN)]))
             mem_part.extend(self.parse_op("POP", ["GR2"]))
             mem_part.extend(self.parse_op("POP", ["GR1"]))
             return mem_part
@@ -160,7 +158,7 @@ class Parser:
             mem_part.extend(self.parse_op("PUSH", ["0", "GR2"]))
             mem_part.extend(self.parse_op("LAD", ["GR1", args[0]]))
             mem_part.extend(self.parse_op("LAD", ["GR2", args[1]]))
-            mem_part.extend(self.parse_op("SVC", [str(self.SVC_OP_OUT)]))
+            mem_part.extend(self.parse_op("SVC", [str(Comet2.SVC_OP_OUT)]))
             mem_part.extend(self.parse_op("POP", ["GR2"]))
             mem_part.extend(self.parse_op("POP", ["GR1"]))
             return mem_part
@@ -245,11 +243,14 @@ class Parser:
         elif op == "RET":
             return self.mk_1word(0x81, 0, 0)
         elif op == "SVC":
-            # adr == self.SVC_OP_IN:  IN GR1 GR2
-            # adr == self.SVC_OP_OUT:  OUT GR1 GR2
+            # adr == Comet2.SVC_OP_IN:  IN GR1 GR2
+            # adr == Comet2.SVC_OP_OUT:  OUT GR1 GR2
             adr = args[0]
             return self.mk_2word(0xf0, 0, adr, 0)
         elif op == "START":
+            if len(self._mem) != 0:
+                # STARTはプログラムの最初に記述する
+                err_exit("syntax error: 'START' must be first")
             if len(args) != 0:
                 self._start_label = args[0]
             else:
@@ -275,7 +276,7 @@ class Parser:
         mem_part = self.parse_DC_arg(arg)
         while len(args) != 0:
             if args[0] != ",":
-                err_exit(f"syntax error ',' ({self._line_num})")
+                err_exit(f"syntax error: ',' ({self._line_num})")
             args = args[1:].strip()
             m = re.match(RE_DC_ARG, args)
             arg = m.group(1)
@@ -333,14 +334,14 @@ class Parser:
         opr3_arg = None
         if args[0] in self.REG_NAME_LIST:
             if without_opr1:
-                err_exit(f"syntax error (many reg arg) ({self._line_num})")
+                err_exit(f"syntax error: many reg arg ({self._line_num})")
             opr1 = self.reg(args[0])
             opr2 = args[1]
             if len(args) >3:
                 opr3_arg = args[2]
         else:
             if not without_opr1:
-                err_exit(f"syntax error (no reg arg) ({self._line_num})")
+                err_exit(f"syntax error: no reg arg ({self._line_num})")
             opr2 = args[0]
             if len(args) >= 2:
                 opr3_arg = args[1]
@@ -374,6 +375,8 @@ class Parser:
 class Comet2:
     MEM_SIZE = 0xFFFF
     REG_NUM = 8
+    SVC_OP_IN = 1
+    SVC_OP_OUT = 2
 
     def __init__(self, mem):
         self._gr = [0] * Comet2.REG_NUM
@@ -383,9 +386,17 @@ class Comet2:
         self._sf = 0
         self._of = 0
         self.init_mem(mem)
+        self._inputf = None
         self._outputf = None
+        self._debugf =None
         self.OP_TABLE = {
-                0x10:self.op_LD, 0x11:self.op_ST, 0x12:self.op_LAD, 0x14:self.op_LD_REG}
+                0x10:self.op_LD, 0x11:self.op_ST, 0x12:self.op_LAD,
+                0x14:self.op_LD_REG,
+                0x20:self.op_ADDA, 0x21:self.op_SUBA, 0x22:self.op_ADDL,
+                0x23:self.op_SUBL, 0x24:self.op_ADDA_REG,
+                0x25:self.op_SUBA_REG, 0x26:self.op_ADDL_REG,
+                0x27:self.op_SUBL_REG,
+                0xf0:self.op_SVC}
 
     def init_mem(self, mem):
         self._mem = mem
@@ -397,28 +408,35 @@ class Comet2:
         rest_mem = [Element(0, 0) for _ in range(Comet2.MEM_SIZE - len_mem)]
         self._mem.extend(rest_mem)
 
-    def run(self, outputf, start, end):
+    def run(self, start, end, outputf=None, debugf=None, inputf=None):
         self._outputf = outputf
+        self._debugf = debugf
+        self._inputf = inputf
         self._pr = start
         while self._pr != end:
             self.operate_once()
 
     def operate_once(self):
-        elem = self.get_pr_inc()
+        elem = self.fetch()
         op = (elem.value & 0xff00) >> 8
         if op not in self.OP_TABLE:
-            err_exit(f"unknown operation ([{self._pr - 1}]: {elem.value})")
+            err_exit(f"unknown operation ([{self._pr - 1:04x}]: {elem.value})")
         op_func = self.OP_TABLE[op]
         op_func(elem)
 
-    def output(self, line_num, msg):
-        if self._outputf is None:
+    def output_debug(self, line_num, msg):
+        if self._debugf is None:
             return
         if line_num == 0:
             lstr = "L-:"
         else:
             lstr = f"L{line_num}:"
-        self._outputf.write(f"{lstr} {msg}\n")
+        self._debugf.write(f"{lstr} {msg}\n")
+
+    def output(self, msg):
+        if self._outputf is None:
+            return
+        self._outputf.write(f"OUT: {msg}\n")
 
     def get_gr(self, n):
         if n < 0 or Comet2.REG_NUM <= n:
@@ -440,7 +458,7 @@ class Comet2:
             err_exit("MEM address out of range")
         self._mem[adr].value = val & 0xffff
 
-    def get_pr_inc(self):
+    def fetch(self):
         m = self._mem[self._pr]
         self._pr += 1
         return m
@@ -460,21 +478,21 @@ class Comet2:
 
     def op_LD(self, elem):
         code1 = elem.value
-        elem2 = self.get_pr_inc()
+        elem2 = self.fetch()
         code2 = elem2.value
         _, opr1, opr2, opr3 = self.decode_2word(code1, code2)
         adr = opr2
         if opr3 != 0:
             adr += self.get_gr(opr3)
         val = self._mem[adr].value
-        # TODO 全てのフラグ
         self._zf = int(val == 0)
+        self._sf = (val&0x8000) >> 15
         self.set_gr(opr1, val)
-        self.output(elem.line, f"GR{opr1} <- MEM[{adr}]={val:04x} (ZF <- {self._zf})")
+        self.output_debug(elem.line, f"GR{opr1} <- MEM[{adr:04x}]={val:04x} (ZF <- {self._zf}, SF <- {self._sf})")
 
     def op_ST(self, elem):
         code1 = elem.value
-        elem2 = self.get_pr_inc()
+        elem2 = self.fetch()
         code2 = elem2.value
         _, opr1, opr2, opr3 = self.decode_2word(code1, code2)
         adr = opr2
@@ -482,41 +500,94 @@ class Comet2:
             adr += self.get_gr(opr3)
         val = self.get_gr(opr1)
         self._mem[adr].value = val
-        self.output(elem.line, f"MEM[{adr}] <- GR{opr1}={val:04x}")
+        self.output_debug(elem.line, f"MEM[{adr:04x}] <- GR{opr1}={val:04x}")
 
     def op_LAD(self, elem):
         code1 = elem.value
-        elem2 = self.get_pr_inc()
+        elem2 = self.fetch()
         code2 = elem2.value
         _, opr1, opr2, opr3 = self.decode_2word(code1, code2)
         adr = opr2
         if opr3 != 0:
             adr += self.get_gr(opr3)
         self.set_gr(opr1, adr)
-        self.output(elem.line, f"GR{opr1} <- {adr:04x}")
+        self.output_debug(elem.line, f"GR{opr1} <- {adr:04x}")
 
     def op_LD_REG(self, elem):
         code = elem.value
         _, opr1, opr2 = self.decode_1word(code)
         val = self.get_gr(opr2)
-        # TODO 全てのフラグ
         self._zf = int(val == 0)
+        self._sf = (val&0x8000) >> 15
         self.set_gr(opr1, val)
-        self.output(elem.line, f"GR{opr1} <- GR{opr2}={val:04x} (ZF <- {self._zf})")
+        self.output_debug(elem.line, f"GR{opr1} <- GR{opr2}={val:04x} (ZF <- {self._zf}, SF <- {self._sf})")
+
+    def op_ADDA(self, elem):
+        pass
+
+    def op_SUBA(self, elem):
+        pass
+
+    def op_ADDL(self, elem):
+        pass
+
+    def op_SUBL(self, elem):
+        pass
+
+    def op_ADDA_REG(self, elem):
+        pass
+
+    def op_SUBA_REG(self, elem):
+        pass
+
+    def op_ADDL_REG(self, elem):
+        pass
+
+    def op_SUBL_REG(self, elem):
+        pass
+
 
 
     def op_SVC(self, elem):
-        # OUTの場合、"OUT: msg"の形式で出力する
-        pass
-# End Comet2
+        elem2 = self.fetch()
+        code2 = elem2.value
+        if code2 == Comet2.SVC_OP_IN:
+            # 入力が足りない場合、0で埋める
+            if self._inputf is None:
+                err_exit(f"no input source")
+            start = self.get_gr(1)
+            end = start + self.get_gr(2)
+            self.output_debug(elem.line, "SVC IN")
+            empty_f = False
+            for adr in range(start, end):
+                adr = adr & Comet2.MEM_SIZE
+                if not empty_f:
+                    instr = self._inputf.read(1)
+                    if instr == "":
+                        empty_f = True
+                        d = 0
+                    else:
+                        d = ord(instr) & 0xff
+                else:
+                    d = 0
+                self._mem[adr].value = d
+                self.output_debug(elem.line, f"IN: MEM[{adr:04x}] <- {d:04x}")
+        elif code2 == Comet2.SVC_OP_OUT:
+            msg = []
+            start = self.get_gr(1)
+            end = start + self.get_gr(2)
+            for adr in range(start, end):
+                adr = adr & Comet2.MEM_SIZE
+                msg.append(self._mem[adr].value&0xff)
+            self.output_debug(elem.line, "SVC OUT")
+            self.output(self.to_str(msg))
+        else:
+            err_exit(f"not implemented 'SVC {code2:04x}'")
 
-def run(machine, outputf):
-    """
-    machineの状態から実行する
-    結果はoutputに出力する
-    実行失敗の場合、エラー終了
-    """
-    pass
+    def to_str(self, ilist):
+        # TODO ASCIIのみ (本来対応する文字コードはJIS X 0201)
+        return "".join([chr(i) for i in ilist])
+# End Comet2
 
 
 def base_int(nstr):
@@ -540,7 +611,6 @@ def main():
     parser.add_argument("--set-gr5", type=base_int, help="GR5を指定した値で初期化する", metavar="n")
     parser.add_argument("--set-gr6", type=base_int, help="GR6を指定した値で初期化する", metavar="n")
     parser.add_argument("--set-gr7", type=base_int, help="GR7を指定した値で初期化する", metavar="n")
-    parser.add_argument("--set-pr", type=base_int, help="PRを指定した値で初期化する", metavar="n")
     parser.add_argument("--set-sp", type=base_int, help="SPを指定した値で初期化する", metavar="n")
     parser.add_argument("--set-zf", type=base_int,
             help="FR(zero flag)を指定した値で初期化する", metavar="n")
@@ -548,8 +618,8 @@ def main():
             help="FR(sign flag)を指定した値で初期化する", metavar="n")
     parser.add_argument("--set-of", type=base_int,
             help="FR(overflow flag)を指定した値で初期化する", metavar="n")
-    parser.add_argument("--pre-exec", help="asmfile開始前に実行するcasl2 code", metavar="prefile")
-    parser.add_argument("--post-exec", help="asmfile終了後に実行するcasl2 code", metavar="postfile")
+
+    # レジスタ、メモリの値はデフォルトでは不定（ただし、実際は0で初期化する）
 
     args = parser.parse_args()
 
@@ -563,7 +633,8 @@ def main():
     start = p.get_start()
     end = p.get_end()
     if len(mem) > end:
-        err_exit(f"syntax error 'END' position")
+        # ENDはプログラムの最後に記述する
+        err_exit(f"syntax error: 'END' must be last")
 
     if args.emit_mem:
         width = 8
@@ -579,7 +650,8 @@ def main():
         return
 
     c = Comet2(mem)
-    c.run(sys.stdout, start, end)
+    outputf = sys.stdout
+    c.run(start, end, outputf, outputf, sys.stdin)
 
 if __name__ == "__main__":
     main()

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # coding:utf-8
+import io
+import copy
 import unittest
 import casl2sim
-import sys
 
 
 casl2sim.Element.__eq__ = lambda s,o: s.value == o.value and s.line == o.line
@@ -74,7 +75,7 @@ class TestComet2(unittest.TestCase):
         c = casl2sim.Comet2(mem)
         expected = c._gr[:]
         expected[1] = 0x0012
-        elem = c.get_pr_inc()
+        elem = c.fetch()
         c.op_LD(elem)
         self.assertEqual(expected, c._gr)
 
@@ -89,7 +90,7 @@ class TestComet2(unittest.TestCase):
         c._gr[3] = 1
         expected = c._gr[:]
         expected[1] = 0x0012
-        elem = c.get_pr_inc()
+        elem = c.fetch()
         c.op_LD(elem)
         self.assertEqual(expected, c._gr)
 
@@ -102,7 +103,7 @@ class TestComet2(unittest.TestCase):
         c = casl2sim.Comet2(mem)
         c._gr[1] = 0x0007
         expected = 0x0007
-        elem = c.get_pr_inc()
+        elem = c.fetch()
         c.op_ST(elem)
         self.assertEqual(expected, c._mem[0x0003].value)
 
@@ -117,7 +118,7 @@ class TestComet2(unittest.TestCase):
         c._gr[1] = 0x0007
         c._gr[2] = 0x0001
         expected = 0x0007
-        elem = c.get_pr_inc()
+        elem = c.fetch()
         c.op_ST(elem)
         self.assertEqual(0x0002, c._mem[0x0003].value)
         self.assertEqual(expected, c._mem[0x0004].value)
@@ -129,7 +130,7 @@ class TestComet2(unittest.TestCase):
         c = casl2sim.Comet2(mem)
         expected = c._gr[:]
         expected[1] = 0x0007
-        elem = c.get_pr_inc()
+        elem = c.fetch()
         c.op_LAD(elem)
         self.assertEqual(expected, c._gr)
 
@@ -141,7 +142,7 @@ class TestComet2(unittest.TestCase):
         c._gr[5] = 3
         expected = c._gr[:]
         expected[1] = 0x000a
-        elem = c.get_pr_inc()
+        elem = c.fetch()
         c.op_LAD(elem)
         self.assertEqual(expected, c._gr)
 
@@ -152,11 +153,116 @@ class TestComet2(unittest.TestCase):
         c._gr[5] = 23
         expected = c._gr[:]
         expected[1] = c._gr[5]
-        elem = c.get_pr_inc()
+        elem = c.fetch()
         c.op_LD_REG(elem)
         self.assertEqual(expected, c._gr)
 
 
+
+
+    def test_op_SVC_IN_just(self):
+        mem = [
+                casl2sim.Element(0xf000, 0),
+                casl2sim.Element(0x0001, 0),
+                casl2sim.Element(0x1000, 0),
+                casl2sim.Element(0x1001, 0),
+                casl2sim.Element(0x1002, 0),
+                casl2sim.Element(0x1003, 0),
+                casl2sim.Element(0x1004, 0),
+                casl2sim.Element(0x1005, 0),
+                casl2sim.Element(0x1006, 0),
+                casl2sim.Element(0x1007, 0),
+                casl2sim.Element(0x1008, 0),
+                casl2sim.Element(0x1009, 0)]
+        size = len(mem)
+        expected = [m.value for m in mem]
+        expected[4:9] = [ord("A"), ord("B"), ord("C"), ord("D"), ord("E")]
+        c = casl2sim.Comet2(mem)
+        c._inputf = io.StringIO("ABCDE")
+        c._gr[1] = 4
+        c._gr[2] = 5
+        elem = c.fetch()
+        c.op_SVC(elem)
+        actual = [m.value for m in c._mem[:size]]
+        self.assertEqual(expected, actual)
+
+    def test_op_SVC_IN_short(self):
+        mem = [
+                casl2sim.Element(0xf000, 0),
+                casl2sim.Element(0x0001, 0),
+                casl2sim.Element(0x1000, 0),
+                casl2sim.Element(0x1001, 0),
+                casl2sim.Element(0x1002, 0),
+                casl2sim.Element(0x1003, 0),
+                casl2sim.Element(0x1004, 0),
+                casl2sim.Element(0x1005, 0),
+                casl2sim.Element(0x1006, 0),
+                casl2sim.Element(0x1007, 0),
+                casl2sim.Element(0x1008, 0),
+                casl2sim.Element(0x1009, 0)]
+        size = len(mem)
+        expected = [m.value for m in mem]
+        expected[4:9] = [ord("A"), ord("B"), 0, 0, 0]
+        c = casl2sim.Comet2(mem)
+        c._inputf = io.StringIO("AB")
+        c._gr[1] = 4
+        c._gr[2] = 5
+        elem = c.fetch()
+        c.op_SVC(elem)
+        actual = [m.value for m in c._mem[:size]]
+        self.assertEqual(expected, actual)
+
+    def test_op_SVC_IN_long(self):
+        mem = [
+                casl2sim.Element(0xf000, 0),
+                casl2sim.Element(0x0001, 0),
+                casl2sim.Element(0x1000, 0),
+                casl2sim.Element(0x1001, 0),
+                casl2sim.Element(0x1002, 0),
+                casl2sim.Element(0x1003, 0),
+                casl2sim.Element(0x1004, 0),
+                casl2sim.Element(0x1005, 0),
+                casl2sim.Element(0x1006, 0),
+                casl2sim.Element(0x1007, 0),
+                casl2sim.Element(0x1008, 0),
+                casl2sim.Element(0x1009, 0)]
+        size = len(mem)
+        expected = [m.value for m in mem]
+        expected[4:9] = [ord("A"), ord("B"), ord("C"), ord("D"), ord("E")]
+        c = casl2sim.Comet2(mem)
+        c._inputf = io.StringIO("ABCDEFGH")
+        c._gr[1] = 4
+        c._gr[2] = 5
+        elem = c.fetch()
+        c.op_SVC(elem)
+        actual = [m.value for m in c._mem[:size]]
+        self.assertEqual(expected, actual)
+
+    def test_op_SVC_OUT(self):
+        mem = [
+                casl2sim.Element(0xf000, 0),
+                casl2sim.Element(0x0002, 0),
+                casl2sim.Element(ord("X"), 0),
+                casl2sim.Element(ord("X"), 0),
+                casl2sim.Element(ord("t"), 0),
+                casl2sim.Element(ord("e"), 0),
+                casl2sim.Element(ord("s"), 0),
+                casl2sim.Element(ord("t"), 0),
+                casl2sim.Element(ord(" "), 0),
+                casl2sim.Element(ord("O"), 0),
+                casl2sim.Element(ord("U"), 0),
+                casl2sim.Element(ord("T"), 0),
+                casl2sim.Element(ord("Y"), 0),
+                casl2sim.Element(ord("Y"), 0)]
+        expected = "OUT: test OUT\n"
+        c = casl2sim.Comet2(mem)
+        c._outputf = io.StringIO()
+        c._gr[1] = 4
+        c._gr[2] = 8
+        elem = c.fetch()
+        c.op_SVC(elem)
+        actual = c._outputf.getvalue()
+        self.assertEqual(expected, actual)
 # End TestComet2
 
 if __name__ == "__main__":
