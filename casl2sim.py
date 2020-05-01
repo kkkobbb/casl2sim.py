@@ -228,15 +228,15 @@ class Parser:
         elif op == "JMI":
             return self.op_2word(0x61, args, True)
         elif op == "JNZ":
-            return self.op_2word(0x61, args, True)
+            return self.op_2word(0x62, args, True)
         elif op == "JZE":
-            return self.op_2word(0x61, args, True)
+            return self.op_2word(0x63, args, True)
         elif op == "JUMP":
-            return self.op_2word(0x61, args, True)
+            return self.op_2word(0x64, args, True)
         elif op == "JPL":
-            return self.op_2word(0x61, args, True)
+            return self.op_2word(0x65, args, True)
         elif op == "JOV":
-            return self.op_2word(0x61, args, True)
+            return self.op_2word(0x66, args, True)
         elif op == "PUSH":
             return self.op_2word(0x70, args, True)
         elif op == "POP":
@@ -395,6 +395,7 @@ class Comet2:
         self._outputf = None
         self._debugf =None
         self.OP_TABLE = {
+                0x00:self.op_NOP,
                 0x10:self.op_LD, 0x11:self.op_ST, 0x12:self.op_LAD,
                 0x14:self.op_LD_REG,
                 0x20:self.op_ADDA, 0x21:self.op_SUBA, 0x22:self.op_ADDL,
@@ -410,8 +411,9 @@ class Comet2:
                 0x53:self.op_SRL,
                 0x61:self.op_JMI, 0x62:self.op_JNZ, 0x63:self.op_JZE,
                 0x64:self.op_JUMP, 0x65:self.op_JPL, 0x66:self.op_JOV,
+                0x70:self.op_PUSH, 0x70:self.op_POP,
+                0x80:self.op_CALL, 0x81:self.op_RET,
                 0xf0:self.op_SVC}
-        # TODO OP_TABLE
         self._print_regs = print_regs
 
     def init_mem(self, mem, init_mem_rand):
@@ -533,6 +535,9 @@ class Comet2:
         if opr3 != 0:
             adr += self.get_gr(opr3)
         return (opr1, adr)
+
+    def op_NOP(self, elem):
+        self.output_debug(elem.line, "NOP")
 
     def op_LD(self, elem):
         reg, adr = self.get_reg_adr(elem)
@@ -874,7 +879,7 @@ class Comet2:
         self._sf = 0
         self.set_gr(reg, r)
         self.output_debug(elem.line,
-                f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} <<L MEM[{adr:04x}]={v2:04x}> " +
+                f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} >>L MEM[{adr:04x}]={v2:04x}> " +
                 f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
     def op_JMI(self, elem):
@@ -911,7 +916,7 @@ class Comet2:
 
     def op_JPL(self, elem):
         _, adr = self.get_reg_adr(elem)
-        if self.sf == 0 and self._zf == 0:
+        if self._sf == 0 and self._zf == 0:
             self._pr = adr
             msg = f"PR <- {adr:04x} "
         else:
@@ -927,17 +932,21 @@ class Comet2:
             msg = ""
         self.output_debug(elem.line, msg + "<if OF == 1>")
 
+    def op_PUSH(self, elem):
+        # TODO
+        pass
 
+    def op_POP(self, elem):
+        # TODO
+        pass
 
+    def op_CALL(self, elem):
+        # TODO
+        pass
 
-
-
-
-    # TODO op_*
-
-
-
-
+    def op_RET(self, elem):
+        # TODO
+        pass
 
     def op_SVC(self, elem):
         elem2 = self.fetch()

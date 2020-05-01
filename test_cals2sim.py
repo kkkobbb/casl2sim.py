@@ -558,6 +558,148 @@ class TestComet2(unittest.TestCase):
                 self.assertEqual([0, 0, 0, 0, expected_rval, 0, 0, 0], c._gr)
                 self.assertEqual(expected_flags, (c._zf, c._sf, c._of))
 
+    def test_op_JMI(self):
+        patterns = [
+                ((0, 1, 0), True, "jump 1"),
+                ((1, 1, 1), True, "jump 2"),
+                ((0, 0, 0), False, "not jump 1"),
+                ((1, 0, 0), False, "not jump 2"),
+                ((1, 0, 1), False, "not jump 3")]
+
+        mem = [
+                casl2sim.Element(0x6100, 0),
+                casl2sim.Element(0xbeef, 0)]
+        c = casl2sim.Comet2(mem)
+        for flags, expected_branched, msg in patterns:
+            with self.subTest(msg):
+                c._pr = 0
+                c._gr = [0, 0, 0, 0, 0, 0, 0, 0]
+                c._zf, c._sf, c._of = flags
+                elem = c.fetch()
+                c.op_JMI(elem)
+                expected_pr = 0xbeef if expected_branched else 0x0002
+                self.assertEqual([0, 0, 0, 0, 0, 0, 0, 0], c._gr)
+                self.assertEqual(flags, (c._zf, c._sf, c._of))
+                self.assertEqual(expected_pr, c._pr)
+
+    def test_op_JNZ(self):
+        patterns = [
+                ((0, 0, 0), True, "jump 1"),
+                ((0, 1, 1), True, "jump 2"),
+                ((1, 0, 0), False, "not jump 1"),
+                ((1, 1, 0), False, "not jump 2"),
+                ((1, 1, 1), False, "not jump 3")]
+
+        mem = [
+                casl2sim.Element(0x6200, 0),
+                casl2sim.Element(0xbeef, 0)]
+        c = casl2sim.Comet2(mem)
+        for flags, expected_branched, msg in patterns:
+            with self.subTest(msg):
+                c._pr = 0
+                c._gr = [0, 0, 0, 0, 0, 0, 0, 0]
+                c._zf, c._sf, c._of = flags
+                elem = c.fetch()
+                c.op_JNZ(elem)
+                expected_pr = 0xbeef if expected_branched else 0x0002
+                self.assertEqual([0, 0, 0, 0, 0, 0, 0, 0], c._gr)
+                self.assertEqual(flags, (c._zf, c._sf, c._of))
+                self.assertEqual(expected_pr, c._pr)
+
+    def test_op_JZE(self):
+        patterns = [
+                ((1, 0, 0), True, "jump 1"),
+                ((1, 1, 1), True, "jump 2"),
+                ((0, 0, 0), False, "not jump 1"),
+                ((0, 1, 0), False, "not jump 2"),
+                ((0, 1, 1), False, "not jump 3")]
+
+        mem = [
+                casl2sim.Element(0x6300, 0),
+                casl2sim.Element(0xbeef, 0)]
+        c = casl2sim.Comet2(mem)
+        for flags, expected_branched, msg in patterns:
+            with self.subTest(msg):
+                c._pr = 0
+                c._gr = [0, 0, 0, 0, 0, 0, 0, 0]
+                c._zf, c._sf, c._of = flags
+                elem = c.fetch()
+                c.op_JZE(elem)
+                expected_pr = 0xbeef if expected_branched else 0x0002
+                self.assertEqual([0, 0, 0, 0, 0, 0, 0, 0], c._gr)
+                self.assertEqual(flags, (c._zf, c._sf, c._of))
+                self.assertEqual(expected_pr, c._pr)
+
+    def test_op_JUMP(self):
+        patterns = [
+                ((0, 0, 0), True, "jump 1"),
+                ((1, 1, 1), True, "jump 2")]
+
+        mem = [
+                casl2sim.Element(0x6400, 0),
+                casl2sim.Element(0xbeef, 0)]
+        c = casl2sim.Comet2(mem)
+        for flags, expected_branched, msg in patterns:
+            with self.subTest(msg):
+                c._pr = 0
+                c._gr = [0, 0, 0, 0, 0, 0, 0, 0]
+                c._zf, c._sf, c._of = flags
+                elem = c.fetch()
+                c.op_JUMP(elem)
+                expected_pr = 0xbeef if expected_branched else 0x0002
+                self.assertEqual([0, 0, 0, 0, 0, 0, 0, 0], c._gr)
+                self.assertEqual(flags, (c._zf, c._sf, c._of))
+                self.assertEqual(expected_pr, c._pr)
+
+    def test_op_JPL(self):
+        patterns = [
+                ((0, 0, 0), True, "jump 1"),
+                ((0, 0, 1), True, "jump 2"),
+                ((0, 1, 0), False, "not jump 1"),
+                ((1, 0, 0), False, "not jump 2"),
+                ((1, 1, 1), False, "not jump 3")]
+
+        mem = [
+                casl2sim.Element(0x6500, 0),
+                casl2sim.Element(0xbeef, 0)]
+        c = casl2sim.Comet2(mem)
+        for flags, expected_branched, msg in patterns:
+            with self.subTest(msg):
+                c._pr = 0
+                c._gr = [0, 0, 0, 0, 0, 0, 0, 0]
+                c._zf, c._sf, c._of = flags
+                elem = c.fetch()
+                c.op_JPL(elem)
+                expected_pr = 0xbeef if expected_branched else 0x0002
+                self.assertEqual([0, 0, 0, 0, 0, 0, 0, 0], c._gr)
+                self.assertEqual(flags, (c._zf, c._sf, c._of))
+                self.assertEqual(expected_pr, c._pr)
+
+    def test_op_JOV(self):
+        patterns = [
+                ((0, 0, 1), True, "jump 1"),
+                ((1, 1, 1), True, "jump 2"),
+                ((0, 1, 0), False, "not jump 1"),
+                ((1, 0, 0), False, "not jump 2"),
+                ((1, 1, 0), False, "not jump 3")]
+
+        mem = [
+                casl2sim.Element(0x6600, 0),
+                casl2sim.Element(0xbeef, 0)]
+        c = casl2sim.Comet2(mem)
+        for flags, expected_branched, msg in patterns:
+            with self.subTest(msg):
+                c._pr = 0
+                c._gr = [0, 0, 0, 0, 0, 0, 0, 0]
+                c._zf, c._sf, c._of = flags
+                elem = c.fetch()
+                c.op_JOV(elem)
+                expected_pr = 0xbeef if expected_branched else 0x0002
+                self.assertEqual([0, 0, 0, 0, 0, 0, 0, 0], c._gr)
+                self.assertEqual(flags, (c._zf, c._sf, c._of))
+                self.assertEqual(expected_pr, c._pr)
+
+
 
 
 
