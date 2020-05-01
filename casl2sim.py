@@ -10,7 +10,7 @@ import re
 import sys
 
 
-RE_LABEL = re.compile(r"([A-Za-z][A-Z0-9a-z]*)(.*)")
+RE_LABEL = re.compile(r"([A-Za-z][A-Z0-9a-z]*)(.*)") # 本来は大文字、数字のみ
 RE_OP = re.compile(r"\s+[A-Z].*")
 RE_COMMENT = re.compile(r";.*")
 RE_DC = re.compile(r"\s+DC\s+")
@@ -411,7 +411,7 @@ class Comet2:
                 0x53:self.op_SRL,
                 0x61:self.op_JMI, 0x62:self.op_JNZ, 0x63:self.op_JZE,
                 0x64:self.op_JUMP, 0x65:self.op_JPL, 0x66:self.op_JOV,
-                0x70:self.op_PUSH, 0x70:self.op_POP,
+                0x70:self.op_PUSH, 0x71:self.op_POP,
                 0x80:self.op_CALL, 0x81:self.op_RET,
                 0xf0:self.op_SVC}
         self._print_regs = print_regs
@@ -419,14 +419,15 @@ class Comet2:
     def init_mem(self, mem, init_mem_rand):
         self._mem = mem
         len_mem = len(self._mem)
-        if len_mem == Comet2.MEM_MAX:
+        mem_size = Comet2.MEM_MAX + 1
+        if len_mem == mem_size:
             return
-        if len_mem > Comet2.MEM_MAX:
+        if len_mem > mem_size:
             self.err_exit("memory over")
         if init_mem_rand:
-            padding = [Element(0, random.randint(0, 0xffff)) for _ in range(Comet2.MEM_MAX - len_mem)]
+            padding = [Element(0, random.randint(0, 0xffff)) for _ in range(mem_size - len_mem)]
         else:
-            padding = [Element(0, 0) for _ in range(Comet2.MEM_MAX - len_mem)]
+            padding = [Element(0, 0) for _ in range(mem_size - len_mem)]
         self._mem.extend(padding)
 
     def init_regs(self, grlist, sp, zf, sf, of):
@@ -498,12 +499,12 @@ class Comet2:
         self._gr[n] = val & 0xffff
 
     def get_mem(self, adr):
-        if adr < 0 or Comet2.MEM_MAX <= adr:
+        if adr < 0 or Comet2.MEM_MAX < adr:
             self.err_exit("MEM address out of range")
         return self._mem[adr].value
 
     def set_mem(self, adr, val):
-        if adr < 0 or Comet2.MEM_MAX <= adr:
+        if adr < 0 or Comet2.MEM_MAX < adr:
             self.err_exit("MEM address out of range")
         self._mem[adr].value = val & 0xffff
         self._mem[adr].line = 0
@@ -933,20 +934,35 @@ class Comet2:
         self.output_debug(elem.line, msg + "<if OF == 1>")
 
     def op_PUSH(self, elem):
-        # TODO
-        pass
+        _, val = self.get_reg_adr(elem)
+        self._sp = (self._sp - 1) & 0xffff
+        self.set_mem(self._sp, val)
+        self.output_debug(elem.line,
+                f"MEM[{self._sp:04x}] <- {val:04x} (SP <- {self._sp:04x})")
 
     def op_POP(self, elem):
-        # TODO
-        pass
+        _, reg, _ = self.decode_1word(elem.value)
+        val = self.get_mem(self._sp)
+        self.set_gr(reg, val)
+        self._sp = (self._sp + 1) & 0xffff
+        self.output_debug(elem.line,
+                f"GR{reg} <- {val:04x} (SP <- {self._sp:04x})")
 
     def op_CALL(self, elem):
-        # TODO
-        pass
+        _, next_pr = self.get_reg_adr(elem)
+        self._sp = (self._sp - 1) & 0xffff
+        val = self._pr
+        self.set_mem(self._sp, val)
+        self._pr = next_pr
+        self.output_debug(elem.line,
+                f"PR <- {next_pr:04x}, MEM[{self._sp:04x}] <- {val:04x} " +
+                f"(SP <- {self._sp:04x})")
 
     def op_RET(self, elem):
-        # TODO
-        pass
+        self._pr = self.get_mem(self._sp)
+        self._sp = (self._sp + 1) & 0xffff
+        self.output_debug(elem.line,
+                f"PR <- {self._pr:04x} (SP <- {self._sp:04x})")
 
     def op_SVC(self, elem):
         elem2 = self.fetch()
@@ -1033,7 +1049,7 @@ def main():
     parser.add_argument("--set-gr5", type=base_int, default=0, help="GR5の初期値", metavar="n")
     parser.add_argument("--set-gr6", type=base_int, default=0, help="GR6の初期値", metavar="n")
     parser.add_argument("--set-gr7", type=base_int, default=0, help="GR7の初期値", metavar="n")
-    parser.add_argument("--set-sp", type=base_int, default=Comet2.MEM_MAX, help="SPの初期値", metavar="n")
+    parser.add_argument("--set-sp", type=base_int, default=0, help="SPの初期値", metavar="n")
     parser.add_argument("--set-zf", type=base_int, default=0, help="FR(zero flag)の初期値", metavar="n")
     parser.add_argument("--set-sf", type=base_int, default=0, help="FR(sign flag)の初期値", metavar="n")
     parser.add_argument("--set-of", type=base_int, default=0, help="FR(overflow flag)の初期値", metavar="n")

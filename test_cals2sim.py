@@ -699,14 +699,71 @@ class TestComet2(unittest.TestCase):
                 self.assertEqual(flags, (c._zf, c._sf, c._of))
                 self.assertEqual(expected_pr, c._pr)
 
+    def test_op_PUSH(self):
+        patterns = [
+                (0x0000, 0xbeef, "no reg"),
+                (0x0010, 0xbeff, "reg")]
 
+        mem = [
+                casl2sim.Element(0x7002, 0),
+                casl2sim.Element(0xbeef, 0)]
+        c = casl2sim.Comet2(mem)
+        for rval, expected_mval, msg in patterns:
+            with self.subTest(msg):
+                c._pr = 0
+                c._sp = 0
+                c._gr = [0, 0, rval, 0, 0, 0, 0, 0]
+                elem = c.fetch()
+                c.op_PUSH(elem)
+                self.assertEqual([0, 0, rval, 0, 0, 0, 0, 0], c._gr)
+                self.assertEqual(c._mem[c._sp].value, expected_mval)
+                self.assertEqual(0xffff, c._sp)
 
+    def test_op_POP(self):
+        mem = [casl2sim.Element(0x7120, 0)]
+        c = casl2sim.Comet2(mem)
+        c._mem[0xff00].value = 0xbeef
+        c._pr = 0
+        c._sp = 0xff00
+        c._gr = [0, 0, 0, 0, 0, 0, 0, 0]
+        elem = c.fetch()
+        c.op_POP(elem)
+        self.assertEqual([0, 0, 0xbeef, 0, 0, 0, 0, 0], c._gr)
+        self.assertEqual(0xff01, c._sp)
 
+    def test_op_CALL(self):
+        patterns = [
+                (0x0000, 0xbeef, "no reg"),
+                (0x0010, 0xbeff, "reg")]
 
+        mem = [
+                casl2sim.Element(0x8002, 0),
+                casl2sim.Element(0xbeef, 0)]
+        c = casl2sim.Comet2(mem)
+        for rval, expected_mval, msg in patterns:
+            with self.subTest(msg):
+                c._pr = 0
+                c._sp = 0
+                c._gr = [0, 0, rval, 0, 0, 0, 0, 0]
+                elem = c.fetch()
+                c.op_CALL(elem)
+                self.assertEqual([0, 0, rval, 0, 0, 0, 0, 0], c._gr)
+                self.assertEqual(c._mem[c._sp].value, 2)
+                self.assertEqual(c._pr, expected_mval)
+                self.assertEqual(0xffff, c._sp)
 
-
-
-
+    def test_op_RET(self):
+        mem = [casl2sim.Element(0x8100, 0)]
+        c = casl2sim.Comet2(mem)
+        c._mem[0xff00].value = 0xbeef
+        c._pr = 0
+        c._sp = 0xff00
+        c._gr = [0, 0, 0, 0, 0, 0, 0, 0]
+        elem = c.fetch()
+        c.op_RET(elem)
+        self.assertEqual([0, 0, 0, 0, 0, 0, 0, 0], c._gr)
+        self.assertEqual(c._pr, 0xbeef)
+        self.assertEqual(0xff01, c._sp)
 
     def test_op_SVC_IN_just(self):
         mem = [

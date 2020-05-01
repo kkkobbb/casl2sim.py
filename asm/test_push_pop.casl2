@@ -1,0 +1,7 @@
+; スタック操作
+
+A START
+ LAD GR1,12
+ PUSH 0,GR1
+ POP GR2
+ END

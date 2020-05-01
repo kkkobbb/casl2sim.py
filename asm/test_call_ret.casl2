@@ -1,0 +1,7 @@
+; PRレジスタ操作
+
+A START
+ CALL FFF
+ JUMP LEND
+FFF RET
+LEND END
