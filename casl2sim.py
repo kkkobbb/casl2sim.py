@@ -2,6 +2,9 @@
 # coding:utf-8
 """
 CASL2シミュレータ
+
+STARTの位置から開始し、
+ENDの位置に来た時終了する
 """
 import argparse
 import collections
@@ -430,20 +433,29 @@ class Comet2:
             padding = [Element(0, 0) for _ in range(mem_size - len_mem)]
         self._mem.extend(padding)
 
-    def init_regs(self, grlist, sp, zf, sf, of):
+    def init_regs(self, grlist=[0,0,0,0,0,0,0,0], pr=0, sp=0, zf=0, sf=0, of=0):
         if len(grlist) != Comet2.REG_NUM:
             self.err_exit("internal error grlist")
         self._gr = [gr&0xffff for gr in grlist]
+        self._pr = pr & 0xffff
         self._sp = sp & 0xffff
         self._zf = int(zf != 0)
         self._sf = int(sf != 0)
         self._of = int(of != 0)
 
-    def run(self, start, end, outputf=None, debugf=None, inputf=None):
+    def run(self, start, end, outputf=None, debugf=None, inputf=None, virtual_call=False):
         self._outputf = outputf
         self._debugf = debugf
         self._inputf = inputf
         self._pr = start
+        if virtual_call:
+            self._sp = (self._sp - 1) & 0xffff
+            self._mem[self._sp].value = end & 0xffff
+            if self._debugf is not None:
+                self._debugf.write("VCALL: " +
+                        f"MEM[{self._sp:04x}] <- {end&0xffff:04x} " +
+                        f"(SP <- {self._sp:04x})\n")
+        self.output_regs()
         while self._pr != end:
             self.operate_once()
         self.output_regs()
@@ -486,7 +498,7 @@ class Comet2:
         self._debugf.write("\nREG LIST\n")
         self._debugf.write(f"  {grlist}\n")
         self._debugf.write(f"  PR={self._pr:04x} SP={self._sp:04x}\n")
-        self._debugf.write(f"  ZF={self._zf} SF={self._sf} OF={self._of}\n")
+        self._debugf.write(f"  ZF={self._zf} SF={self._sf} OF={self._of}\n\n")
 
     def get_gr(self, n):
         if n < 0 or Comet2.REG_NUM <= n:
@@ -1034,7 +1046,8 @@ def main():
             description=__doc__,
             formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("asmfile", help="casl2 code")
-    parser.add_argument("-p", "--print-regs", action="store_true", help="実行終了後レジスタの内容を表示する")
+    parser.add_argument("-p", "--print-regs", action="store_true", help="実行前後にレジスタの内容を表示する")
+    parser.add_argument("--virtual-call", action="store_true", help="実行前にENDのアドレスをスタックに積む")
     parser.add_argument("--input-src", help="casl2での入力時の入力元", metavar="file")
     parser.add_argument("--output", help="casl2での出力先", metavar="file")
     parser.add_argument("--output-debug", help="casl2でのデバッグ出力先", metavar="file")
@@ -1055,6 +1068,7 @@ def main():
     parser.add_argument("--set-of", type=base_int, default=0, help="FR(overflow flag)の初期値", metavar="n")
 
     # レジスタ、メモリの値はデフォルトでは0
+    # --virtual-call: RETで終了するような、STARTのラベル呼び出しを前提としたコードを正常終了させる
 
     args = parser.parse_args()
 
@@ -1084,12 +1098,12 @@ def main():
     c = Comet2(mem, args.rand_mem, args.print_regs)
     grlist = [args.set_gr0, args.set_gr1, args.set_gr2, args.set_gr3,
             args.set_gr4, args.set_gr5, args.set_gr6, args.set_gr7]
-    c.init_regs(grlist, args.set_sp, args.set_zf, args.set_sf, args.set_of)
+    c.init_regs(grlist, 0, args.set_sp, args.set_zf, args.set_sf, args.set_of)
     with open(args.output, "w") if args.output else Stdout() as fo:
         eq_output = args.output_debug == args.output
         with fo if eq_output else open(args.output_debug, "w") if args.output_debug else Stdout() as fd:
                 with open(args.input_src) if args.input_src else Stdin() as fi:
-                    c.run(start, end, fo, fd, fi)
+                    c.run(start, end, fo, fd, fi, args.virtual_call)
 
 if __name__ == "__main__":
     main()
