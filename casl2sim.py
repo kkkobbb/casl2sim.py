@@ -408,6 +408,8 @@ class Comet2:
                 0x45:self.op_CPL_REG,
                 0x50:self.op_SLA, 0x51:self.op_SRA, 0x52:self.op_SLL,
                 0x53:self.op_SRL,
+                0x61:self.op_JMI, 0x62:self.op_JNZ, 0x63:self.op_JZE,
+                0x64:self.op_JUMP, 0x65:self.op_JPL, 0x66:self.op_JOV,
                 0xf0:self.op_SVC}
         # TODO OP_TABLE
         self._print_regs = print_regs
@@ -875,6 +877,55 @@ class Comet2:
                 f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} <<L MEM[{adr:04x}]={v2:04x}> " +
                 f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
+    def op_JMI(self, elem):
+        _, adr = self.get_reg_adr(elem)
+        if self._sf != 0:
+            self._pr = adr
+            msg = f"PR <- {adr:04x} "
+        else:
+            msg = ""
+        self.output_debug(elem.line, msg + "<if SF == 1>")
+
+    def op_JNZ(self, elem):
+        _, adr = self.get_reg_adr(elem)
+        if self._zf == 0:
+            self._pr = adr
+            msg = f"PR <- {adr:04x} "
+        else:
+            msg = ""
+        self.output_debug(elem.line, msg + "<if ZF == 0>")
+
+    def op_JZE(self, elem):
+        _, adr = self.get_reg_adr(elem)
+        if self._zf != 0:
+            self._pr = adr
+            msg = f"PR <- {adr:04x} "
+        else:
+            msg = ""
+        self.output_debug(elem.line, msg + "<if ZF == 1>")
+
+    def op_JUMP(self, elem):
+        _, adr = self.get_reg_adr(elem)
+        self._pr = adr
+        self.output_debug(elem.line, f"PR <- {adr:04x}")
+
+    def op_JPL(self, elem):
+        _, adr = self.get_reg_adr(elem)
+        if self.sf == 0 and self._zf == 0:
+            self._pr = adr
+            msg = f"PR <- {adr:04x} "
+        else:
+            msg = ""
+        self.output_debug(elem.line, msg + "<if SF == 0 and ZF == 0>")
+
+    def op_JOV(self, elem):
+        _, adr = self.get_reg_adr(elem)
+        if self._of != 0:
+            self._pr = adr
+            msg = f"PR <- {adr:04x} "
+        else:
+            msg = ""
+        self.output_debug(elem.line, msg + "<if OF == 1>")
 
 
 
