@@ -580,9 +580,9 @@ class TestComet2(unittest.TestCase):
         mem = [
                 casl2sim.Element(0x4010, 0),
                 casl2sim.Element(0x0002, 0),
-                casl2sim.Element(0x0005, 0)]
+                casl2sim.Element(0x000f, 0)]
         c = casl2sim.Comet2(mem)
-        c._gr[1] = 2
+        c._gr[1] = 0xf000
         expected = c._gr[:]
         elem = c.fetch()
         c.op_CPA(elem)
@@ -596,9 +596,9 @@ class TestComet2(unittest.TestCase):
         mem = [
                 casl2sim.Element(0x4010, 0),
                 casl2sim.Element(0x0002, 0),
-                casl2sim.Element(0x0005, 0)]
+                casl2sim.Element(0xf000, 0)]
         c = casl2sim.Comet2(mem)
-        c._gr[1] = 12
+        c._gr[1] = 0x000f
         expected = c._gr[:]
         elem = c.fetch()
         c.op_CPA(elem)
@@ -642,25 +642,25 @@ class TestComet2(unittest.TestCase):
         mem = [
                 casl2sim.Element(0x4110, 0),
                 casl2sim.Element(0x0002, 0),
-                casl2sim.Element(0x0005, 0)]
+                casl2sim.Element(0xf000, 0)]
         c = casl2sim.Comet2(mem)
-        c._gr[1] = 2
+        c._gr[1] = 0x000f
         expected = c._gr[:]
         elem = c.fetch()
         c.op_CPL(elem)
         self.assertEqual(expected, c._gr)
         self.assertEqual(0, c._zf)
-        self.assertEqual(0, c._sf)
-        self.assertEqual(1, c._of)
+        self.assertEqual(1, c._sf)
+        self.assertEqual(0, c._of)
 
     def test_op_CPL_gt(self):
         # >
         mem = [
                 casl2sim.Element(0x4110, 0),
                 casl2sim.Element(0x0002, 0),
-                casl2sim.Element(0x0005, 0)]
+                casl2sim.Element(0x000f, 0)]
         c = casl2sim.Comet2(mem)
-        c._gr[1] = 12
+        c._gr[1] = 0xf000
         expected = c._gr[:]
         elem = c.fetch()
         c.op_CPL(elem)
@@ -682,6 +682,108 @@ class TestComet2(unittest.TestCase):
         self.assertEqual(1, c._zf)
         self.assertEqual(0, c._sf)
         self.assertEqual(0, c._of)
+
+    def test_op_SLA(self):
+        pattern = [
+                (0x000f, 0x0004, 0x00f0, (0, 0, 0), "no flag"),
+                (0x180f, 0x0004, 0x00f0, (0, 0, 1), "overflow"),
+                (0x7f00, 0x0009, 0x0000, (1, 0, 0), "zero"),
+                (0xff00, 0x0010, 0x8000, (0, 1, 1), "16bit shift"),
+                (0x7f00, 0xffff, 0x0000, (1, 0, 0), "long shift positive"),
+                (0xff00, 0xffff, 0x8000, (0, 1, 1), "long shift negative")]
+
+        mem = [
+                casl2sim.Element(0x5010, 0),
+                casl2sim.Element(0x0002, 0)]
+        c = casl2sim.Comet2(mem)
+        for reg, val, expected_reg, expected_flag, msg in pattern:
+            with self.subTest(msg):
+                c._pr = 0
+                c._gr = [0, reg, 0, 0, 0, 0, 0, 0]
+                c._mem[2].value = val
+                elem = c.fetch()
+                c.op_SLA(elem)
+                self.assertEqual([0, expected_reg, 0, 0, 0, 0, 0, 0], c._gr)
+                self.assertEqual(expected_flag[0], c._zf)
+                self.assertEqual(expected_flag[1], c._sf)
+                self.assertEqual(expected_flag[2], c._of)
+
+    def test_op_SRA(self):
+        pattern = [
+                (0x7000, 0x0004, 0x0700, (0, 0, 0), "no flag"),
+                (0xf00f, 0x0004, 0xff00, (0, 1, 1), "overflow"),
+                (0x0007, 0x0004, 0x0000, (1, 0, 0), "zero"),
+                (0xff00, 0x0010, 0xffff, (0, 1, 1), "16bit shift"),
+                (0x7f00, 0xffff, 0x0000, (1, 0, 1), "long shift positive"),
+                (0xff00, 0xffff, 0xffff, (0, 1, 1), "long shift negative")]
+
+        mem = [
+                casl2sim.Element(0x5120, 0),
+                casl2sim.Element(0x0002, 0)]
+        c = casl2sim.Comet2(mem)
+        for reg, val, expected_reg, expected_flag, msg in pattern:
+            with self.subTest(msg):
+                c._pr = 0
+                c._gr = [0, 0, reg, 0, 0, 0, 0, 0]
+                c._mem[2].value = val
+                elem = c.fetch()
+                c.op_SRA(elem)
+                self.assertEqual([0, 0, expected_reg, 0, 0, 0, 0, 0], c._gr)
+                self.assertEqual(expected_flag[0], c._zf)
+                self.assertEqual(expected_flag[1], c._sf)
+                self.assertEqual(expected_flag[2], c._of)
+
+    def test_op_SLL(self):
+        pattern = [
+                (0x000f, 0x0004, 0x00f0, (0, 0, 0), "no flag"),
+                (0x180f, 0x0004, 0x80f0, (0, 0, 1), "overflow"),
+                (0x7f00, 0x0009, 0x0000, (1, 0, 0), "zero"),
+                (0xff00, 0x0010, 0x0000, (1, 0, 0), "16bit shift"),
+                (0x7f00, 0xffff, 0x0000, (1, 0, 0), "long shift positive"),
+                (0xff00, 0xffff, 0x0000, (1, 0, 0), "long shift negative")]
+
+        mem = [
+                casl2sim.Element(0x5230, 0),
+                casl2sim.Element(0x0002, 0)]
+        c = casl2sim.Comet2(mem)
+        for reg, val, expected_reg, expected_flag, msg in pattern:
+            with self.subTest(msg):
+                c._pr = 0
+                c._gr = [0, 0, 0, reg, 0, 0, 0, 0]
+                c._mem[2].value = val
+                elem = c.fetch()
+                c.op_SLL(elem)
+                self.assertEqual([0, 0, 0, expected_reg, 0, 0, 0, 0], c._gr)
+                self.assertEqual(expected_flag[0], c._zf)
+                self.assertEqual(expected_flag[1], c._sf)
+                self.assertEqual(expected_flag[2], c._of)
+
+    def test_op_SRL(self):
+        pattern = [
+                (0x7000, 0x0004, 0x0700, (0, 0, 0), "no flag"),
+                (0xf00f, 0x0004, 0x0f00, (0, 0, 1), "overflow"),
+                (0x0007, 0x0004, 0x0000, (1, 0, 0), "zero"),
+                (0xff00, 0x0010, 0x0000, (1, 0, 1), "16bit shift"),
+                (0x7f00, 0xffff, 0x0000, (1, 0, 0), "long shift positive"),
+                (0xff00, 0xffff, 0x0000, (1, 0, 0), "long shift negative")]
+
+        mem = [
+                casl2sim.Element(0x5340, 0),
+                casl2sim.Element(0x0002, 0)]
+        c = casl2sim.Comet2(mem)
+        for reg, val, expected_reg, expected_flag, msg in pattern:
+            with self.subTest(msg):
+                c._pr = 0
+                c._gr = [0, 0, 0, 0, reg, 0, 0, 0]
+                c._mem[2].value = val
+                elem = c.fetch()
+                c.op_SRL(elem)
+                self.assertEqual([0, 0, 0, 0, expected_reg, 0, 0, 0], c._gr)
+                self.assertEqual(expected_flag[0], c._zf)
+                self.assertEqual(expected_flag[1], c._sf)
+                self.assertEqual(expected_flag[2], c._of)
+
+
 
 
 
@@ -795,4 +897,4 @@ class TestComet2(unittest.TestCase):
 # End TestComet2
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)
