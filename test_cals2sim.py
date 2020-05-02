@@ -7,6 +7,8 @@ import casl2sim
 
 
 casl2sim.Element.__eq__ = lambda s,o: s.value == o.value and s.line == o.line
+casl2sim.Element.__repr__ = \
+        lambda s: f"<{s.__module__}.{type(s).__name__} value={s.value:04x}, line={s.line}>"
 
 class TestParser(unittest.TestCase):
     def test_parse_DC(self):
