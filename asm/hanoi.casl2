@@ -1,5 +1,14 @@
 ; https://ja.wikipedia.org/wiki/CASL
 
+; RESULT
+; from A to C
+; from A to B
+; from C to B
+; from A to C
+; from B to A
+; from B to C
+; from A to C
+
 ; ハノイの塔を解くプログラム
 MAIN   START
        LD      GR0,N
