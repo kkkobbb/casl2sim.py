@@ -342,7 +342,7 @@ class Parser:
                 self.err_exit(f"syntax error [too many register arg] (L{self._line_num})")
             opr1 = self.reg(args[0])
             opr2 = args[1]
-            if len(args) >3:
+            if len(args) >= 3:
                 opr3_arg = args[2]
         else:
             if not without_opr1:

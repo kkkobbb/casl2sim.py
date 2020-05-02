@@ -63,6 +63,21 @@ class TestParser(unittest.TestCase):
                 casl2sim.Element(0x000b, 0)]
         actual = p.op_1or2word(0xff, 0xf0, ["GR3", "11", "GR5"])
         self.assertEqual(expected, actual)
+
+    def test_op_2word(self):
+        patterns = [
+                (0x11, ["GR1", "13"], [
+                    casl2sim.Element(0x1110, 0),
+                    casl2sim.Element(0x000d, 0)], "2 operands"),
+                (0x11, ["GR2", "8", "GR6"], [
+                    casl2sim.Element(0x1126, 0),
+                    casl2sim.Element(0x0008, 0)], "3 operands")]
+
+        p = casl2sim.Parser()
+        for op, args, expected, msg in patterns:
+            with self.subTest(msg):
+                actual = p.op_2word(op, args)
+                self.assertEqual(expected, actual)
 # End TestParser
 
 class TestComet2(unittest.TestCase):
