@@ -7,7 +7,7 @@ STARTの位置から開始し、
 ENDの位置に来た時終了する
 """
 import argparse
-import collections
+import contextlib
 import random
 import re
 import sys
@@ -1027,45 +1027,33 @@ class Comet2:
 def base_int(nstr):
     return int(nstr, 0)
 
-class Stdout:
-    def __enter__(self):
-        return sys.stdout
-    def __exit__(self, typ, val, trace):
-        pass
-# End Stdout
-
-class Stdin:
-    def __enter__(self):
-        return sys.stdin
-    def __exit__(self, typ, val, trace):
-        pass
-# End Stdin
-
 def main():
     parser = argparse.ArgumentParser(
             description=__doc__,
             formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("asmfile", help="casl2 code")
-    parser.add_argument("-p", "--print-regs", action="store_true", help="実行前後にレジスタの内容を表示する")
-    parser.add_argument("--virtual-call", action="store_true", help="実行前にENDのアドレスをスタックに積む")
-    parser.add_argument("--input-src", help="casl2での入力時の入力元", metavar="file")
-    parser.add_argument("--output", help="casl2での出力先", metavar="file")
-    parser.add_argument("--output-debug", help="casl2でのデバッグ出力先", metavar="file")
-    parser.add_argument("--emit-bin", action="store_true", help="アセンブル後のバイナリを出力して終了する")
-    parser.add_argument("--rand-mem", action="store_true", help="値が未指定のメモリを乱数で初期化する")
-    parser.add_argument("--rand-seed", type=int, help="乱数のシード値", metavar="seed")
-    parser.add_argument("--set-gr0", type=base_int, default=0, help="GR0の初期値", metavar="n")
-    parser.add_argument("--set-gr1", type=base_int, default=0, help="GR1の初期値", metavar="n")
-    parser.add_argument("--set-gr2", type=base_int, default=0, help="GR2の初期値", metavar="n")
-    parser.add_argument("--set-gr3", type=base_int, default=0, help="GR3の初期値", metavar="n")
-    parser.add_argument("--set-gr4", type=base_int, default=0, help="GR4の初期値", metavar="n")
-    parser.add_argument("--set-gr5", type=base_int, default=0, help="GR5の初期値", metavar="n")
-    parser.add_argument("--set-gr6", type=base_int, default=0, help="GR6の初期値", metavar="n")
-    parser.add_argument("--set-gr7", type=base_int, default=0, help="GR7の初期値", metavar="n")
-    parser.add_argument("--set-sp", type=base_int, default=0, help="SPの初期値", metavar="n")
-    parser.add_argument("--set-zf", type=base_int, default=0, help="FR(zero flag)の初期値", metavar="n")
-    parser.add_argument("--set-sf", type=base_int, default=0, help="FR(sign flag)の初期値", metavar="n")
-    parser.add_argument("--set-of", type=base_int, default=0, help="FR(overflow flag)の初期値", metavar="n")
+    gasm = parser.add_argument_group("assembly optional arguments")
+    gasm.add_argument("--emit-bin", action="store_true", help="アセンブル後のバイナリを出力して終了する")
+    grun = parser.add_argument_group("runtime optional arguments")
+    grun.add_argument("-p", "--print-regs", action="store_true", help="実行前後にレジスタの内容を表示する")
+    grun.add_argument("--virtual-call", action="store_true", help="実行前にENDのアドレスをスタックに積む")
+    grun.add_argument("--input-src", help="実行時の入力元 ('-'でstdin)", metavar="file")
+    grun.add_argument("--output", help="実行時の出力先 ('-'でstdout)", metavar="file")
+    grun.add_argument("--output-debug", help="実行時のデバッグ出力先 ('-'でstdout)", metavar="file")
+    grun.add_argument("--rand-mem", action="store_true", help="値が未指定のメモリを乱数で初期化する")
+    grun.add_argument("--rand-seed", type=int, help="乱数のシード値", metavar="seed")
+    grun.add_argument("--set-gr0", type=base_int, default=0, help="GR0の初期値", metavar="n")
+    grun.add_argument("--set-gr1", type=base_int, default=0, help="GR1の初期値", metavar="n")
+    grun.add_argument("--set-gr2", type=base_int, default=0, help="GR2の初期値", metavar="n")
+    grun.add_argument("--set-gr3", type=base_int, default=0, help="GR3の初期値", metavar="n")
+    grun.add_argument("--set-gr4", type=base_int, default=0, help="GR4の初期値", metavar="n")
+    grun.add_argument("--set-gr5", type=base_int, default=0, help="GR5の初期値", metavar="n")
+    grun.add_argument("--set-gr6", type=base_int, default=0, help="GR6の初期値", metavar="n")
+    grun.add_argument("--set-gr7", type=base_int, default=0, help="GR7の初期値", metavar="n")
+    grun.add_argument("--set-sp", type=base_int, default=0, help="SPの初期値", metavar="n")
+    grun.add_argument("--set-zf", type=base_int, default=0, help="FR(zero flag)の初期値", metavar="n")
+    grun.add_argument("--set-sf", type=base_int, default=0, help="FR(sign flag)の初期値", metavar="n")
+    grun.add_argument("--set-of", type=base_int, default=0, help="FR(overflow flag)の初期値", metavar="n")
 
     # レジスタ、メモリの値はデフォルトでは0
     # --virtual-call: RETで終了するような、STARTのラベル呼び出しを前提としたコードを正常終了させる
@@ -1076,7 +1064,13 @@ def main():
         random.seed(args.rand_seed)
 
     p = Parser()
-    with open(args.asmfile) as f:
+    with contextlib.ExitStack() as stack:
+        if args.asmfile == "-":
+            used_stdin = True
+            f = sys.stdin
+        else:
+            used_stdin = False
+            f = stack.enter_context(open(args.asmfile))
         p.parse(f)
     mem = p.get_mem()
     start = p.get_start()
@@ -1099,11 +1093,31 @@ def main():
     grlist = [args.set_gr0, args.set_gr1, args.set_gr2, args.set_gr3,
             args.set_gr4, args.set_gr5, args.set_gr6, args.set_gr7]
     c.init_regs(grlist, 0, args.set_sp, args.set_zf, args.set_sf, args.set_of)
-    with open(args.output, "w") if args.output else Stdout() as fo:
-        eq_output = args.output_debug == args.output
-        with fo if eq_output else open(args.output_debug, "w") if args.output_debug else Stdout() as fd:
-                with open(args.input_src) if args.input_src else Stdin() as fi:
-                    c.run(start, end, fo, fd, fi, args.virtual_call)
+    with contextlib.ExitStack() as stack:
+        if args.output in [None, "-"]:
+            fo = sys.stdout
+        elif args.output == "":
+            fo = None
+        else:
+            fo = stack.enter_context(open(args.output))
+        if args.output_debug == args.output:
+            fd = fo
+        elif args.output_debug in [None, "-"]:
+            fd = sys.stdout
+        elif args.output_debug == "":
+            fd = None
+        else:
+            fd = stack.enter_context(open(args.output_debug))
+        if args.input_src in [None, "-"]:
+            if used_stdin:
+                print("Warning: both asmfile and input-src are stdin",
+                        file=sys.stderr)
+            fi = sys.stdin
+        elif args.input_src == "":
+            fi = None
+        else:
+            fi = stack.enter_context(open(args.input_src))
+        c.run(start, end, fo, fd, fi, args.virtual_call)
 
 if __name__ == "__main__":
     main()
