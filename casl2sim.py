@@ -28,9 +28,7 @@ class Element:
         self.value = v
         # int (debug用) asmでの行番号を格納する asmと無関係または実行時に書き換えられた場合は0
         self.line = l
-
-    def __str__(self):
-        return f"(value={self.value:04x}, line={self.line})"
+# End Element
 
 class Parser:
     REG_NAME_LIST = ["GR0", "GR1", "GR2", "GR3", "GR4", "GR5", "GR6", "GR7"]
@@ -341,14 +339,14 @@ class Parser:
         opr3_arg = None
         if args[0] in self.REG_NAME_LIST:
             if without_opr1:
-                self.err_exit(f"syntax error [many reg arg] (L{self._line_num})")
+                self.err_exit(f"syntax error [too many register arg] (L{self._line_num})")
             opr1 = self.reg(args[0])
             opr2 = args[1]
             if len(args) >3:
                 opr3_arg = args[2]
         else:
             if not without_opr1:
-                self.err_exit(f"syntax error [no reg arg] (L{self._line_num})")
+                self.err_exit(f"syntax error [no register arg] (L{self._line_num})")
             opr2 = args[0]
             if len(args) >= 2:
                 opr3_arg = args[1]
@@ -356,11 +354,11 @@ class Parser:
             opr3 = self.reg(opr3_arg)
         return self.mk_2word(op, opr1, opr2, opr3)
 
-    zero = ord("0")
+    ZERO = ord("0")
     def reg(self, regname):
         if regname not in self.REG_NAME_LIST:
-            self.err_exit(f"no register name (L{self._line_num}: {regname})")
-        return ord(regname[2]) - self.zero
+            self.err_exit(f"bad register name (L{self._line_num}: {regname})")
+        return ord(regname[2]) - self.ZERO
 
     def mk_1word(self, opcode, operand1, operand2):
         word = ((opcode & 0xff) << 8) | ((operand1 & 0xf) << 4) | (operand2 & 0xf)
@@ -755,7 +753,8 @@ class Comet2:
                 f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} ^ GR{reg2}={v2:04x}> " +
                 f"(ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})")
 
-    def expand_bit(self, v):
+    @staticmethod
+    def expand_bit(v):
         return v if (v & 0x8000) == 0 else -1 * (((~v) + 1) & 0xffff)
 
     def cmp_flag(self, v1, v2, arithmetic=True):
@@ -766,8 +765,8 @@ class Comet2:
             return
         self._zf = 0
         if arithmetic:
-            v1n = self.expand_bit(v1)
-            v2n = self.expand_bit(v2)
+            v1n = Comet2.expand_bit(v1)
+            v2n = Comet2.expand_bit(v2)
             self._sf = int(v1n < v2n)
         else:
             self._sf = int(v1 < v2)
@@ -1028,9 +1027,10 @@ class Comet2:
             adr = adr & Comet2.MEM_MAX
             msg.append(self.get_mem(adr)&0xff)
         self.output_debug(elem.line, "SVC OUT")
-        self.output(self.to_str(msg))
+        self.output(Comet2.to_str(msg))
 
-    def to_str(self, ilist):
+    @staticmethod
+    def to_str(ilist):
         # TODO ASCIIのみ (本来対応する文字コードはJIS X 0201)
         return "".join([chr(i) for i in ilist])
 # End Comet2
@@ -1122,7 +1122,7 @@ def main():
             fd = stack.enter_context(open(args.output_debug))
         if args.input_src in [None, "-"]:
             if used_stdin:
-                print("Warning: both asmfile and input-src are stdin",
+                print("System Warning: both asmfile and input-src are stdin",
                         file=sys.stderr)
             fi = sys.stdin
         elif args.input_src == "":
