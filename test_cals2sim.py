@@ -27,55 +27,37 @@ class TestParser(unittest.TestCase):
         p.resolve_labels()
         self.assertEqual(expected, actual)
 
-    def test_op_1or2word_1w(self):
-        p = casl2sim.Parser()
-        expected = [casl2sim.Element(0xff01, 0)]
-        actual = p.op_1or2word(0xff, 0xf0, ["GR0", "GR1"])
-        self.assertEqual(expected, actual)
+    def test_op_1or2word(self):
+        patterns = [
+                ((0xff, 0xf0), ["GR0", "GR1"], [], (0xff01,), "1 word"),
+                ((0xff, 0xf0), ["GR3", "LAB", "GR5"], [],
+                    (0xf035, 0x00ff), "2 words label"),
+                ((0xff, 0xf0), ["GR3", "=11", "GR5"],
+                    [casl2sim.Element(0, 0)]*3,
+                    (0xf035, 0x0003), "2 words const addr"),
+                ((0xff, 0xf0), ["GR3", "11", "GR5"], [],
+                    (0xf035, 0x000b), "2 word const literal")]
 
-    def test_op_1or2word_2w_addr(self):
         p = casl2sim.Parser()
-        p.set_actual_label("LAB", 0xff)
-        expected = [
-                casl2sim.Element(0xf035, 0),
-                casl2sim.Element(0x00ff, 0)]
-        actual = p.op_1or2word(0xff, 0xf0, ["GR3", "LAB", "GR5"])
-        p.resolve_labels()
-        self.assertEqual(expected, actual)
-
-    def test_op_1or2word_2w_const(self):
-        p = casl2sim.Parser()
-        p._mem = [
-                casl2sim.Element(0, 0),
-                casl2sim.Element(0, 0),
-                casl2sim.Element(0, 0)]
-        expected = [
-                casl2sim.Element(0xf035, 0),
-                casl2sim.Element(0x0003, 0)]
-        actual = p.op_1or2word(0xff, 0xf0, ["GR3", "=11", "GR5"])
-        p.resolve_consts()
-        self.assertEqual(expected, actual)
-
-    def test_op_1or2word_2w_const2(self):
-        p = casl2sim.Parser()
-        expected = [
-                casl2sim.Element(0xf035, 0),
-                casl2sim.Element(0x000b, 0)]
-        actual = p.op_1or2word(0xff, 0xf0, ["GR3", "11", "GR5"])
-        self.assertEqual(expected, actual)
+        for ops, args, mem, expected_vals, msg in patterns:
+            with self.subTest(msg):
+                p._mem = mem
+                p._actual_labels = {"LAB":0xff}
+                expected = [casl2sim.Element(v, 0) for v in expected_vals]
+                actual = p.op_1or2word(ops[0], ops[1], args)
+                p.resolve_labels()
+                p.resolve_consts()
+                self.assertEqual(expected, actual)
 
     def test_op_2word(self):
         patterns = [
-                (0x11, ["GR1", "13"], [
-                    casl2sim.Element(0x1110, 0),
-                    casl2sim.Element(0x000d, 0)], "2 operands"),
-                (0x11, ["GR2", "8", "GR6"], [
-                    casl2sim.Element(0x1126, 0),
-                    casl2sim.Element(0x0008, 0)], "3 operands")]
+                (0x11, ["GR1", "13"], (0x1110, 0x000d), "2 operands"),
+                (0x11, ["GR2", "8", "GR6"], (0x1126, 0x0008), "3 operands")]
 
         p = casl2sim.Parser()
-        for op, args, expected, msg in patterns:
+        for op, args, expected_vals, msg in patterns:
             with self.subTest(msg):
+                expected = [casl2sim.Element(v, 0) for v in expected_vals]
                 actual = p.op_2word(op, args)
                 self.assertEqual(expected, actual)
 # End TestParser
@@ -780,104 +762,38 @@ class TestComet2(unittest.TestCase):
         self.assertEqual(c._pr, 0xbeef)
         self.assertEqual(0xff01, c._sp)
 
-    def test_op_SVC_IN_just(self):
-        mem = [
-                casl2sim.Element(0xf000, 0),
-                casl2sim.Element(0x0001, 0),
-                casl2sim.Element(0x1000, 0),
-                casl2sim.Element(0x1001, 0),
-                casl2sim.Element(0x1002, 0),
-                casl2sim.Element(0x1003, 0),
-                casl2sim.Element(0x1004, 0),
-                casl2sim.Element(0x1005, 0),
-                casl2sim.Element(0x1006, 0),
-                casl2sim.Element(0x1007, 0),
-                casl2sim.Element(0x1008, 0),
-                casl2sim.Element(0x1009, 0),
-                casl2sim.Element(0x0005, 0)]
-        size = len(mem)
-        expected = [m.value for m in mem]
-        expected[4:9] = [ord("A"), ord("B"), ord("C"), ord("D"), ord("E")]
-        c = casl2sim.Comet2(mem)
-        c._inputf = io.StringIO("ABCDE")
-        c._gr[1] = 4
-        c._gr[2] = 12
-        elem = c.fetch()
-        c.op_SVC(elem)
-        actual = [m.value for m in c._mem[:size]]
-        self.assertEqual(expected, actual)
+    def test_op_SVC_IN(self):
+        patterns = [
+                ("ABCDE", [
+                    0xf000, 0x0001, 0x1000, 0x1001, ord("A"), ord("B"), ord("C"),
+                    ord("D"), ord("E"), 0x1007, 0x1008, 0x1009, 0x0005], "just input"),
+                ("AB", [
+                    0xf000, 0x0001, 0x1000, 0x1001, ord("A"), ord("B"), 0x0000,
+                    0x0000, 0x0000, 0x1007, 0x1008, 0x1009, 0x0005], "short input"),
+                ("ABCDEFGH", [
+                    0xf000, 0x0001, 0x1000, 0x1001, ord("A"), ord("B"), ord("C"),
+                    ord("D"), ord("E"), 0x1007, 0x1008, 0x1009, 0x0005], "long input")]
 
-    def test_op_SVC_IN_short(self):
-        mem = [
-                casl2sim.Element(0xf000, 0),
-                casl2sim.Element(0x0001, 0),
-                casl2sim.Element(0x1000, 0),
-                casl2sim.Element(0x1001, 0),
-                casl2sim.Element(0x1002, 0),
-                casl2sim.Element(0x1003, 0),
-                casl2sim.Element(0x1004, 0),
-                casl2sim.Element(0x1005, 0),
-                casl2sim.Element(0x1006, 0),
-                casl2sim.Element(0x1007, 0),
-                casl2sim.Element(0x1008, 0),
-                casl2sim.Element(0x1009, 0),
-                casl2sim.Element(0x0005, 0)]
-        size = len(mem)
-        expected = [m.value for m in mem]
-        expected[4:9] = [ord("A"), ord("B"), 0, 0, 0]
-        c = casl2sim.Comet2(mem)
-        c._inputf = io.StringIO("AB")
-        c._gr[1] = 4
-        c._gr[2] = 12
-        elem = c.fetch()
-        c.op_SVC(elem)
-        actual = [m.value for m in c._mem[:size]]
-        self.assertEqual(expected, actual)
-
-    def test_op_SVC_IN_long(self):
-        mem = [
-                casl2sim.Element(0xf000, 0),
-                casl2sim.Element(0x0001, 0),
-                casl2sim.Element(0x1000, 0),
-                casl2sim.Element(0x1001, 0),
-                casl2sim.Element(0x1002, 0),
-                casl2sim.Element(0x1003, 0),
-                casl2sim.Element(0x1004, 0),
-                casl2sim.Element(0x1005, 0),
-                casl2sim.Element(0x1006, 0),
-                casl2sim.Element(0x1007, 0),
-                casl2sim.Element(0x1008, 0),
-                casl2sim.Element(0x1009, 0),
-                casl2sim.Element(0x0005, 0)]
-        size = len(mem)
-        expected = [m.value for m in mem]
-        expected[4:9] = [ord("A"), ord("B"), ord("C"), ord("D"), ord("E")]
-        c = casl2sim.Comet2(mem)
-        c._inputf = io.StringIO("ABCDEFGH")
-        c._gr[1] = 4
-        c._gr[2] = 12
-        elem = c.fetch()
-        c.op_SVC(elem)
-        actual = [m.value for m in c._mem[:size]]
-        self.assertEqual(expected, actual)
+        mem_vals = [
+                0xf000, 0x0001, 0x1000, 0x1001, 0x1002, 0x1003, 0x1004,
+                0x1005, 0x1006, 0x1007, 0x1008, 0x1009, 0x0005]
+        for input_str, expected_vals, msg in patterns:
+            with self.subTest(msg):
+                expected = [casl2sim.Element(v, 0) for v in expected_vals]
+                c = casl2sim.Comet2([casl2sim.Element(v, 0) for v in mem_vals])
+                c._inputf = io.StringIO(input_str)
+                c._pr = 0
+                c._gr = [0, 4, 12, 0, 0, 0, 0, 0]
+                elem = c.fetch()
+                c.op_SVC(elem)
+                self.assertEqual(expected, c._mem[:len(mem_vals)])
 
     def test_op_SVC_OUT(self):
-        mem = [
-                casl2sim.Element(0xf000, 0),
-                casl2sim.Element(0x0002, 0),
-                casl2sim.Element(ord("X"), 0),
-                casl2sim.Element(ord("X"), 0),
-                casl2sim.Element(ord("t"), 0),
-                casl2sim.Element(ord("e"), 0),
-                casl2sim.Element(ord("s"), 0),
-                casl2sim.Element(ord("t"), 0),
-                casl2sim.Element(ord(" "), 0),
-                casl2sim.Element(ord("O"), 0),
-                casl2sim.Element(ord("U"), 0),
-                casl2sim.Element(ord("T"), 0),
-                casl2sim.Element(ord("Y"), 0),
-                casl2sim.Element(ord("Y"), 0),
-                casl2sim.Element(0x0008, 0)]
+        mem_vals = [
+                0xf000, 0x0002, ord("X"), ord("X"), ord("t"), ord("e"),
+                ord("s"), ord("t"), ord(" "), ord("O"), ord("U"), ord("T"),
+                ord("Y"), ord("Y"), 0x0008]
+        mem = [casl2sim.Element(v, 0) for v in mem_vals]
         expected = "  OUT: test OUT\n"
         c = casl2sim.Comet2(mem)
         c._outputf = io.StringIO()
