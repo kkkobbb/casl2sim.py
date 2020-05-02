@@ -446,6 +446,7 @@ class Comet2:
         self._debugf = debugf
         self._inputf = inputf
         self._pr = start
+        self.output_regs()
         if virtual_call:
             self._sp = (self._sp - 1) & 0xffff
             self._mem[self._sp].value = end & 0xffff
@@ -453,7 +454,6 @@ class Comet2:
                 self._debugf.write("VCALL: " +
                         f"MEM[{self._sp:04x}] <- {end&0xffff:04x} " +
                         f"(SP <- {self._sp:04x})\n")
-        self.output_regs()
         while self._pr != end:
             self.operate_once()
         self.output_regs()
@@ -495,8 +495,8 @@ class Comet2:
         grlist = " ".join([f"GR{i}={gr:04x}" for i, gr in enumerate(self._gr)])
         self._debugf.write("\nREG LIST\n")
         self._debugf.write(f"  {grlist}\n")
-        self._debugf.write(f"  PR={self._pr:04x} SP={self._sp:04x}\n")
-        self._debugf.write(f"  ZF={self._zf} SF={self._sf} OF={self._of}\n\n")
+        self._debugf.write(f"  PR={self._pr:04x} SP={self._sp:04x} ")
+        self._debugf.write(f"ZF={self._zf} SF={self._sf} OF={self._of}\n\n")
 
     def get_gr(self, n):
         if n < 0 or Comet2.REG_NUM <= n:
@@ -1026,7 +1026,7 @@ class Comet2:
         for adr in range(start, end):
             adr = adr & Comet2.MEM_MAX
             msg.append(self.get_mem(adr)&0xff)
-        self.output_debug(elem.line, "SVC OUT")
+        self.output_debug(elem.line, f"SVC OUT MEM[{start:04x}]...MEM[{end:04x}]")
         self.output(Comet2.to_str(msg))
 
     @staticmethod
