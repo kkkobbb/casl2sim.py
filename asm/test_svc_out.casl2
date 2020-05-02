@@ -1,8 +1,10 @@
 ; 出力
 
-TEST START
- LAD GR1,LBL
- LAD GR2,20
- SVC 2
-LBL DC 'TEST TEST ''SVC OUT''.'
- END
+TEST    START
+        LAD GR1,MSG
+        LAD GR2,SIZE
+        SVC 2
+        JUMP LEND
+MSG     DC 'TEST TEST ''SVC OUT''.'
+SIZE    DC 20
+LEND    END

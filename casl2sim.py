@@ -481,7 +481,7 @@ class Comet2:
         if self._debugf is None:
             return
         if line_num == 0:
-            lstr = "L-:"
+            lstr = "--:"
         else:
             lstr = f"L{line_num}:"
         self._debugf.write(f"{lstr:>6} {msg}\n")
@@ -547,7 +547,7 @@ class Comet2:
         adr = opr2
         if opr3 != 0:
             adr += self.get_gr(opr3)
-        return (opr1, adr)
+        return (opr1, adr&0xffff)
 
     def op_NOP(self, elem):
         self.output_debug(elem.line, "NOP")
@@ -946,19 +946,30 @@ class Comet2:
         self.output_debug(elem.line, msg + "<if OF == 1>")
 
     def op_PUSH(self, elem):
-        _, val = self.get_reg_adr(elem)
+        code1 = elem.value
+        elem2 = self.fetch()
+        code2 = elem2.value
+        _, _, opr2, opr3 = self.decode_2word(code1, code2)
+        val = opr2
+        if opr3 != 0:
+            offset = self.get_gr(opr3)
+            val = (val + offset) & 0xffff
+            msg_val = f"<{opr2:04x} + GR{opr3}={offset:04x}>"
+        else:
+            msg_val = f"<{opr2:04x}>"
         self._sp = (self._sp - 1) & 0xffff
         self.set_mem(self._sp, val)
         self.output_debug(elem.line,
-                f"MEM[{self._sp:04x}] <- {val:04x} (SP <- {self._sp:04x})")
+                f"MEM[{self._sp:04x}] <- {val:04x} {msg_val} (SP <- {self._sp:04x})")
 
     def op_POP(self, elem):
         _, reg, _ = self.decode_1word(elem.value)
-        val = self.get_mem(self._sp)
+        adr = self._sp
+        val = self.get_mem(adr)
         self.set_gr(reg, val)
         self._sp = (self._sp + 1) & 0xffff
         self.output_debug(elem.line,
-                f"GR{reg} <- {val:04x} (SP <- {self._sp:04x})")
+                f"GR{reg} <- {val:04x} <MEM[{adr:04x}]> (SP <- {self._sp:04x})")
 
     def op_CALL(self, elem):
         _, next_pr = self.get_reg_adr(elem)
@@ -967,7 +978,7 @@ class Comet2:
         self.set_mem(self._sp, val)
         self._pr = next_pr
         self.output_debug(elem.line,
-                f"PR <- {next_pr:04x}, MEM[{self._sp:04x}] <- {val:04x} " +
+                f"PR <- {next_pr:04x}, MEM[{self._sp:04x}] <- PR={val:04x} " +
                 f"(SP <- {self._sp:04x})")
 
     def op_RET(self, elem):
@@ -990,8 +1001,9 @@ class Comet2:
         if self._inputf is None:
             self.err_exit(f"no input source")
         start = self.get_gr(1)
-        end = start + self.get_gr(2)
-        self.output_debug(elem.line, "SVC IN")
+        size = self.get_mem(self.get_gr(2))
+        end = start + size
+        self.output_debug(elem.line, f"SVC IN ({size})")
         empty_f = False
         # 入力が足りない場合、0で埋める
         for adr in range(start, end):
@@ -1011,7 +1023,7 @@ class Comet2:
     def op_SVC_OUT(self, elem):
         msg = []
         start = self.get_gr(1)
-        end = start + self.get_gr(2)
+        end = start + self.get_mem(self.get_gr(2))
         for adr in range(start, end):
             adr = adr & Comet2.MEM_MAX
             msg.append(self.get_mem(adr)&0xff)

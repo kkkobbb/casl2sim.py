@@ -778,14 +778,15 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(0x1006, 0),
                 casl2sim.Element(0x1007, 0),
                 casl2sim.Element(0x1008, 0),
-                casl2sim.Element(0x1009, 0)]
+                casl2sim.Element(0x1009, 0),
+                casl2sim.Element(0x0005, 0)]
         size = len(mem)
         expected = [m.value for m in mem]
         expected[4:9] = [ord("A"), ord("B"), ord("C"), ord("D"), ord("E")]
         c = casl2sim.Comet2(mem)
         c._inputf = io.StringIO("ABCDE")
         c._gr[1] = 4
-        c._gr[2] = 5
+        c._gr[2] = 12
         elem = c.fetch()
         c.op_SVC(elem)
         actual = [m.value for m in c._mem[:size]]
@@ -804,14 +805,15 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(0x1006, 0),
                 casl2sim.Element(0x1007, 0),
                 casl2sim.Element(0x1008, 0),
-                casl2sim.Element(0x1009, 0)]
+                casl2sim.Element(0x1009, 0),
+                casl2sim.Element(0x0005, 0)]
         size = len(mem)
         expected = [m.value for m in mem]
         expected[4:9] = [ord("A"), ord("B"), 0, 0, 0]
         c = casl2sim.Comet2(mem)
         c._inputf = io.StringIO("AB")
         c._gr[1] = 4
-        c._gr[2] = 5
+        c._gr[2] = 12
         elem = c.fetch()
         c.op_SVC(elem)
         actual = [m.value for m in c._mem[:size]]
@@ -830,14 +832,15 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(0x1006, 0),
                 casl2sim.Element(0x1007, 0),
                 casl2sim.Element(0x1008, 0),
-                casl2sim.Element(0x1009, 0)]
+                casl2sim.Element(0x1009, 0),
+                casl2sim.Element(0x0005, 0)]
         size = len(mem)
         expected = [m.value for m in mem]
         expected[4:9] = [ord("A"), ord("B"), ord("C"), ord("D"), ord("E")]
         c = casl2sim.Comet2(mem)
         c._inputf = io.StringIO("ABCDEFGH")
         c._gr[1] = 4
-        c._gr[2] = 5
+        c._gr[2] = 12
         elem = c.fetch()
         c.op_SVC(elem)
         actual = [m.value for m in c._mem[:size]]
@@ -858,12 +861,13 @@ class TestComet2(unittest.TestCase):
                 casl2sim.Element(ord("U"), 0),
                 casl2sim.Element(ord("T"), 0),
                 casl2sim.Element(ord("Y"), 0),
-                casl2sim.Element(ord("Y"), 0)]
+                casl2sim.Element(ord("Y"), 0),
+                casl2sim.Element(0x0008, 0)]
         expected = "  OUT: test OUT\n"
         c = casl2sim.Comet2(mem)
         c._outputf = io.StringIO()
         c._gr[1] = 4
-        c._gr[2] = 8
+        c._gr[2] = 14
         elem = c.fetch()
         c.op_SVC(elem)
         actual = c._outputf.getvalue()

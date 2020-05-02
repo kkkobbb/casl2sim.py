@@ -1,8 +1,10 @@
 ; 入力
 
-TEST START
- LAD GR1,LBL
- LAD GR2,10
- SVC 1
-LBL DS 10
- END
+TEST    START
+        LAD GR1,SAVE
+        LAD GR2,SIZE
+        SVC 1
+        JUMP LEND
+SAVE    DS 10
+SIZE    DC 10
+LEND    END
