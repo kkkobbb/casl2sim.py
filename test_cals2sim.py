@@ -770,7 +770,7 @@ class TestComet2(unittest.TestCase):
         self.assertEqual(c._pr, 0xbeef)
         self.assertEqual(0xff01, c._sp)
 
-    def test_op_SVC_IN(self):
+    def test_op_SVC_IN_size(self):
         patterns = [
                 (256, "just input"),
                 (0, "no input"),
@@ -784,10 +784,8 @@ class TestComet2(unittest.TestCase):
                 valid_input_size = min(input_size, 256)
                 input_vals = ["X" for _ in range(valid_input_size)]
                 expected_vals = mem_vals[:]
-                expected_vals[3] = min(valid_input_size + 1, 256)
+                expected_vals[3] = min(valid_input_size, 256)
                 expected_vals[4:4+valid_input_size] = [ord(s) for s in input_vals]
-                if len(input_vals) < 256:
-                    expected_vals[4+input_size] = 0xffff
                 expected = [casl2sim.Element(s, 0) for s in expected_vals]
                 c = casl2sim.Comet2([casl2sim.Element(v, 0) for v in mem_vals])
                 c._fin = io.StringIO("".join(input_vals))
@@ -796,6 +794,24 @@ class TestComet2(unittest.TestCase):
                 elem = c.fetch()
                 c.op_SVC(elem)
                 self.assertEqual(expected, c._mem[:len(expected)])
+
+    def test_op_SVC_IN_newline(self):
+        mem_vals = [0xf000, 0x0001]
+        mem_vals.extend([i for i in range(0x1000, 0x1100)])
+        input_str = '1111 test\nTEST\r!"#$'
+        expected_str = '1111testTEST!"#$'
+        input_size = len(expected_str)
+        expected_vals = mem_vals[:]
+        expected_vals[3] = input_size
+        expected_vals[4:4+input_size] = [ord(s) for s in expected_str]
+        expected = [casl2sim.Element(s, 0) for s in expected_vals]
+        c = casl2sim.Comet2([casl2sim.Element(v, 0) for v in mem_vals])
+        c._fin = io.StringIO(input_str)
+        c._pr = 0
+        c._gr = [0, 4, 3, 0, 0, 0, 0, 0]
+        elem = c.fetch()
+        c.op_SVC(elem)
+        self.assertEqual(expected, c._mem[:len(expected)])
 
     def test_op_SVC_OUT(self):
         mem_vals = [
@@ -814,6 +830,27 @@ class TestComet2(unittest.TestCase):
         self.assertEqual(expected, actual)
 # End TestComet2
 
+class TestMain(unittest.TestCase):
+    def setUp(self):
+        self.orig_argv = sys.argv
+
+    def tearDown(self):
+        sys.argv = self.orig_argv
+
+    def test_run_asmfile(self):
+        asmdir = pathlib.Path("asm")
+        testfiles = [str(p) for p in
+                filter(lambda p: p.is_file() and p.name.startswith("test_"),
+                    asmdir.iterdir())]
+        for testfile in testfiles:
+            with self.subTest(testfile=testfile):
+                print(testfile)
+                sys.argv = ["./casl2sim.py", testfile, "--input-src="]
+                casl2sim.main()
+        # エラーが発生しないこと
+# End TestMain
+
+
 if __name__ == "__main__":
     #unittest.main(verbosity=2)
-    unittest.main()
+    unittest.main(buffer=True)

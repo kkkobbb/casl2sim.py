@@ -897,23 +897,33 @@ class Comet2:
             self.err_exit(f"unknown SVC op 'SVC {code2:04x}'")
 
     def op_SVC_IN(self, elem):
-        if self._fin is None:
-            self.err_exit(f"no input source")
+        # self._finがNoneの場合、サイズ0の入力とみなす
         start = self.get_gr(1)
         self.output_debug(elem.line, "SVC IN", False)
         size = 0
         for _ in range(256):
             save_adr = (start + size) & Comet2.ADR_MAX
-            size += 1
-            instr = self._fin.read(1)
-            d = ord(instr)&0xff if instr != "" else (-1) & 0xffff
-            self.set_mem(save_adr, d)
-            self.output_debug(elem.line, f"IN: MEM[{save_adr:04x}] <- {d:04x}", False)
+            instr = ""
+            if self._fin is not None:
+                while True:
+                    instr = self._fin.read(1)
+                    if instr == "" or Comet2.is_printable(instr):
+                        break
             if instr == "":
                 break
+            d = ord(instr)&0xff
+            self.set_mem(save_adr, d)
+            self.output_debug(elem.line, f"IN: MEM[{save_adr:04x}] <- {d:04x}", False)
+            size += 1
         size_adr = self.get_gr(2)
         self.set_mem(size_adr, size)
         self.output_debug(elem.line, f"IN: MEM[{size_adr:04x}] <- {size:04x}", False)
+
+    @staticmethod
+    def is_printable(s):
+        # JIS X 0201での印字可能文字
+        c = ord(s)
+        return (0x21 <= c and c <= 0x7e) or (0xa1 <= c and c <= 0xdf)
 
     def op_SVC_OUT(self, elem):
         msg = []
