@@ -13,11 +13,12 @@ import re
 import sys
 
 
-RE_LABEL = re.compile(r"([A-Za-z][A-Z0-9a-z]*)(.*)") # 本来は大文字、数字のみ
-RE_OP = re.compile(r"\s+[A-Z].*")
+LABEL = r"[A-Za-z][A-Z0-9a-z]*" # 本来は小文字は不可
+RE_LABEL_LINE = re.compile(fr"({LABEL})(.*)")
+RE_OP_LINE = re.compile(r"\s+[A-Z].*")
 RE_COMMENT = re.compile(r";.*")
 RE_DC = re.compile(r"\s+DC\s+")
-RE_DC_ARG = re.compile(r"('(''|[^'])+'|[0-9]+|#[0-9A-Fa-f]+|[A-Z][0-9A-Z]*)(.*)")
+RE_DC_ARGS = re.compile(fr"('(''|[^'])+'|[0-9]+|#[0-9A-Fa-f]+|{LABEL})(.*)")
 
 class Element:
     """
@@ -45,7 +46,7 @@ class Parser:
         for r in self.REG_NAME_LIST:
             self._actual_labels[r] = None
         # 未割当の定数を格納する要素を保持する {定数(int): [格納先の要素(Element), ...]}
-        self._unresolved_consts = {}
+        self._unallocated_consts = {}
         # 開始位置 (START疑似命令の指定先)
         self._start = 0
         self._start_label = None
@@ -64,7 +65,7 @@ class Parser:
             # ENDはプログラムの最後に記述する
             self.err_exit(f"syntax error ['END' must be last]")
         self.resolve_labels()
-        self.resolve_consts()
+        self.allocate_consts()
 
     def err_exit(self, msg):
         print(f"Assemble Error: {msg}", file=sys.stderr)
@@ -89,10 +90,10 @@ class Parser:
             self.err_exit(f"defined label (L{self._line_num}: {label})")
         self._actual_labels[label] = line_num
 
-    def add_unresolved_const(self, const, elem):
-        if const not in self._unresolved_consts:
-            self._unresolved_consts[const] = []
-        self._unresolved_consts[const].append(elem)
+    def add_unallocated_const(self, const, elem):
+        if const not in self._unallocated_consts:
+            self._unallocated_consts[const] = []
+        self._unallocated_consts[const].append(elem)
 
     def resolve_labels(self):
         if self._start_label is not None:
@@ -108,8 +109,8 @@ class Parser:
             for elem in elemlist:
                 elem.value = addr
 
-    def resolve_consts(self):
-        for const, elemlist in self._unresolved_consts.items():
+    def allocate_consts(self):
+        for const, elemlist in self._unallocated_consts.items():
             self._mem.append(Element(const & 0xffff, 0))
             addr = (len(self._mem) - 1) & 0xffff
             for elem in elemlist:
@@ -123,11 +124,11 @@ class Parser:
         line_ = re.sub(RE_COMMENT, "", line)[:-1]
         if len(line_.strip()) == 0:
             return []
-        m = re.match(RE_LABEL, line_)
+        m = re.match(RE_LABEL_LINE, line_)
         if m is not None:
             self.set_actual_label(m.group(1), len(self._mem))
             line_ = m.group(2)
-        if re.match(RE_OP, line_) is None:
+        if re.match(RE_OP_LINE, line_) is None:
             self.err_exit(f"syntax error [bad format] (L{self._line_num})")
         tokens = line_.strip().split()
         op = tokens[0]
@@ -266,7 +267,7 @@ class Parser:
 
     def parse_DC(self, line):
         args = re.sub(RE_DC, "", line)
-        m = re.match(RE_DC_ARG, args)
+        m = re.match(RE_DC_ARGS, args)
         # 最低1つは引数がある前提
         arg = m.group(1)
         args = m.group(3).strip()
@@ -275,7 +276,7 @@ class Parser:
             if args[0] != ",":
                 self.err_exit(f"syntax error [','] (L{self._line_num})")
             args = args[1:].strip()
-            m = re.match(RE_DC_ARG, args)
+            m = re.match(RE_DC_ARGS, args)
             arg, _, args = m.groups()
             mem_part.extend(self.parse_DC_arg(arg))
         return mem_part
@@ -359,7 +360,7 @@ class Parser:
         elem1 = Element(word1, self._line_num)
         elem2 = Element(0, self._line_num)
         if operand2[0] == "=":
-            self.add_unresolved_const(int(operand2[1:]), elem2)
+            self.add_unallocated_const(int(operand2[1:]), elem2)
         elif operand2.isdecimal():
             elem2.value = int(operand2)
         else:

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # coding:utf-8
 import io
+import pathlib
+import sys
 import unittest
 
 import casl2sim
@@ -38,7 +40,7 @@ class TestParser(unittest.TestCase):
                     [casl2sim.Element(0, 0)]*3,
                     (0xf035, 0x0003), "2 words const addr"),
                 ((0xff, 0xf0), ["GR3", "11", "GR5"], [],
-                    (0xf035, 0x000b), "2 word const literal")]
+                    (0xf035, 0x000b), "2 words const literal")]
 
         p = casl2sim.Parser()
         for ops, args, mem, expected_vals, msg in patterns:
@@ -48,7 +50,7 @@ class TestParser(unittest.TestCase):
                 expected = [casl2sim.Element(v, 0) for v in expected_vals]
                 actual = p.op_1or2word(ops[0], ops[1], args)
                 p.resolve_labels()
-                p.resolve_consts()
+                p.allocate_consts()
                 self.assertEqual(expected, actual)
 
     def test_op_2word(self):
@@ -813,4 +815,5 @@ class TestComet2(unittest.TestCase):
 # End TestComet2
 
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    #unittest.main(verbosity=2)
+    unittest.main()
