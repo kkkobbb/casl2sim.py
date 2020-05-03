@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # coding:utf-8
 import io
-import copy
 import unittest
+
 import casl2sim
 
 
