@@ -780,17 +780,11 @@ class Comet2:
         reg, adr = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
-        if v2 == 0:
-            self.output_debug(elem.line,
-                    f"GR{reg} <- {v1:04x} <GR{reg}={v1:04x} << MEM[{adr:04x}]={v2:04x}>")
-            return
-        elif v2 >= self.REG_BITS:
-            v2 = self.REG_BITS
-            self._of = (v1 & 0x8000) >> 15
-        else:
-            self._of = int((v1 & (1 << (self.REG_BITS - v2))) != 0)
-        r = (v1 << v2) & 0xffff
-        r = ((r & 0x7fff) | (v1 & 0x8000))
+        shift = v2 if v2 < self.REG_BITS else self.REG_BITS
+        r = v1
+        for _ in range(shift):
+            self._of = (r & 0x4000) >> 14
+            r = (((r << 1) & 0x7fff) | (v1 & 0x8000))
         self._zf = int(r == 0)
         self._sf = (v1 & 0x8000) >> 15
         self.set_gr(reg, r)
@@ -802,20 +796,13 @@ class Comet2:
         reg, adr = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
-        if v2 == 0:
-            self.output_debug(elem.line,
-                    f"GR{reg} <- {v1:04x} <GR{reg}={v1:04x} >> MEM[{adr:04x}]={v2:04x}>")
-            return
-        elif v2 >= self.REG_BITS:
-            v2 = self.REG_BITS
-            self._of = 1
-        else:
-            self._of = int((v1 & (1 << (v2 - 1))) != 0)
-        r = v1 >> v2
-        self._sf = (v1 & 0x8000) >> 15
-        if self._sf != 0:
-            r = r | ((~((1 << (Comet2.REG_BITS - v2)) - 1))&0xffff)
+        shift = v2 if v2 < self.REG_BITS else self.REG_BITS
+        r = v1
+        for _ in range(shift):
+            self._of = r & 0x0001
+            r = (((r >> 1) & 0x7fff) | (v1 & 0x8000))
         self._zf = int(r == 0)
+        self._sf = (v1 & 0x8000) >> 15
         self.set_gr(reg, r)
         self.output_debug(elem.line,
                 f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} >> MEM[{adr:04x}]={v2:04x}> " +
@@ -825,16 +812,11 @@ class Comet2:
         reg, adr = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
-        if v2 == 0:
-            self.output_debug(elem.line,
-                    f"GR{reg} <- {v1:04x} <GR{reg}={v1:04x} <<L MEM[{adr:04x}]={v2:04x}>")
-            return
-        elif v2 > self.REG_BITS:
-            v2 = self.REG_BITS
-            self._of = 0
-        else:
-            self._of = int((v1 & (1 << (self.REG_BITS - v2))) != 0)
-        r = (v1 << v2) & 0xffff
+        shift = v2 if v2 < self.REG_BITS + 1 else self.REG_BITS + 1
+        r = v1
+        for _ in range(shift):
+            self._of = (r & 0x8000) >> 15
+            r = (r << 1) & 0xffff
         self._zf = int(r == 0)
         self._sf = 0
         self.set_gr(reg, r)
@@ -846,16 +828,11 @@ class Comet2:
         reg, adr = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
-        if v2 == 0:
-            self.output_debug(elem.line,
-                    f"GR{reg} <- {v1:04x} <GR{reg}={v1:04x} >>L MEM[{adr:04x}]={v2:04x}>")
-            return
-        elif v2 > self.REG_BITS:
-            v2 = self.REG_BITS
-            self._of = 0
-        else:
-            self._of = int((v1 & (1 << (v2 - 1))) != 0)
-        r = v1 >> v2
+        shift = v2 if v2 < self.REG_BITS + 1 else self.REG_BITS + 1
+        r = v1
+        for _ in range(shift):
+            self._of = r & 0x0001
+            r = r >> 1
         self._zf = int(r == 0)
         self._sf = 0
         self.set_gr(reg, r)
