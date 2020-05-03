@@ -8,6 +8,7 @@ ENDの位置に来た時終了する
 """
 import argparse
 import contextlib
+import operator
 import re
 import sys
 
@@ -53,8 +54,8 @@ class Parser:
         # 解析中の行番号
         self._line_num = 0
 
-    def parse(self, inputf):
-        for line in inputf:
+    def parse(self, fin):
+        for line in fin:
             self._line_num += 1
             self._mem.extend(self.parse_line(line))
         if self._end < 0:
@@ -381,9 +382,9 @@ class Comet2:
         self._sf = 0
         self._of = 0
         self.init_mem(mem)
-        self._inputf = None
-        self._outputf = None
-        self._debugf =None
+        self._fin = None
+        self._fout = None
+        self._fdbg =None
         self.OP_TABLE = {
                 0x00:self.op_NOP,
                 0x10:self.op_LD, 0x11:self.op_ST, 0x12:self.op_LAD,
@@ -427,18 +428,18 @@ class Comet2:
         self._sf = int(sf != 0)
         self._of = int(of != 0)
 
-    def run(self, start, end, outputf=None, debugf=None, inputf=None, virtual_call=False):
-        self._outputf = outputf
-        self._debugf = debugf
-        self._inputf = inputf
+    def run(self, start, end, fout=None, fdbg=None, fin=None, virtual_call=False):
+        self._fout = fout
+        self._fdbg = fdbg
+        self._fin = fin
         self._pr = start & 0xffff
         end = end & 0xffff
         self.output_regs()
         if virtual_call:
             self._sp = (self._sp - 1) & 0xffff
             self._mem[self._sp].value = end
-            if self._debugf is not None:
-                self._debugf.write("VCALL: " +
+            if self._fdbg is not None:
+                self._fdbg.write("VCALL: " +
                         f"MEM[{self._sp:04x}] <- {end:04x} (SP <- {self._sp:04x})\n")
         while self._pr != end:
             self.run_once()
@@ -459,25 +460,25 @@ class Comet2:
         sys.exit(1)
 
     def output_debug(self, line_num, msg, print_flags=True):
-        if self._debugf is None:
+        if self._fdbg is None:
             return
         lstr = "--:" if line_num == 0 else f"L{line_num}:"
         flags = f" (ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})" if print_flags else ""
-        self._debugf.write(f"{lstr:>6} [{self._inst_adr:04x}] {msg}{flags}\n")
+        self._fdbg.write(f"{lstr:>6} [{self._inst_adr:04x}] {msg}{flags}\n")
 
     def output(self, msg):
-        if self._outputf is None:
+        if self._fout is None:
             return
-        self._outputf.write(f"  OUT: {msg}\n")
+        self._fout.write(f"  OUT: {msg}\n")
 
     def output_regs(self):
         if not self._print_regs:
             return
         grlist = " ".join([f"GR{i}={gr:04x}" for i, gr in enumerate(self._gr)])
-        self._debugf.write("\nREG LIST\n")
-        self._debugf.write(f"  {grlist}\n")
-        self._debugf.write(f"  PR={self._pr:04x} SP={self._sp:04x} ")
-        self._debugf.write(f"ZF={self._zf} SF={self._sf} OF={self._of}\n\n")
+        self._fdbg.write("\nREG LIST\n")
+        self._fdbg.write(f"  {grlist}\n")
+        self._fdbg.write(f"  PR={self._pr:04x} SP={self._sp:04x} ")
+        self._fdbg.write(f"ZF={self._zf} SF={self._sf} OF={self._of}\n\n")
 
     def get_gr(self, n):
         if n < 0 or Comet2.REG_NUM <= n:
@@ -656,7 +657,7 @@ class Comet2:
         reg, adr = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
-        r = self.bit_flag(lambda v1, v2: v1 & v2, v1, v2)
+        r = self.bit_flag(operator.and_, v1, v2)
         self.set_gr(reg, r)
         self.output_debug(elem.line, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} & MEM[{adr:04x}]={v2:04x}>")
 
@@ -664,7 +665,7 @@ class Comet2:
         reg, adr = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
-        r = self.bit_flag(lambda v1, v2: v1 | v2, v1, v2)
+        r = self.bit_flag(operator.or_, v1, v2)
         self.set_gr(reg, r)
         self.output_debug(elem.line, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} | MEM[{adr:04x}]={v2:04x}>")
 
@@ -672,7 +673,7 @@ class Comet2:
         reg, adr = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
-        r = self.bit_flag(lambda v1, v2: v1 ^ v2, v1, v2)
+        r = self.bit_flag(operator.xor, v1, v2)
         self.set_gr(reg, r)
         self.output_debug(elem.line, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} ^ MEM[{adr:04x}]={v2:04x}>")
 
@@ -680,7 +681,7 @@ class Comet2:
         _, reg1, reg2 = Comet2.decode_1word(elem.value)
         v1 = self.get_gr(reg1)
         v2 = self.get_gr(reg2)
-        r = self.bit_flag(lambda v1, v2: v1 & v2, v1, v2)
+        r = self.bit_flag(operator.and_, v1, v2)
         self.set_gr(reg1, r)
         self.output_debug(elem.line, f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} & GR{reg2}={v2:04x}>")
 
@@ -688,7 +689,7 @@ class Comet2:
         _, reg1, reg2 = Comet2.decode_1word(elem.value)
         v1 = self.get_gr(reg1)
         v2 = self.get_gr(reg2)
-        r = self.bit_flag(lambda v1, v2: v1 | v2, v1, v2)
+        r = self.bit_flag(operator.or_, v1, v2)
         self.set_gr(reg1, r)
         self.output_debug(elem.line, f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} | GR{reg2}={v2:04x}>")
 
@@ -696,7 +697,7 @@ class Comet2:
         _, reg1, reg2 = Comet2.decode_1word(elem.value)
         v1 = self.get_gr(reg1)
         v2 = self.get_gr(reg2)
-        r = self.bit_flag(lambda v1, v2: v1 ^ v2, v1, v2)
+        r = self.bit_flag(operator.xor, v1, v2)
         self.set_gr(reg1, r)
         self.output_debug(elem.line, f"GR{reg1} <- {r:04x} <GR{reg1}={v1:04x} ^ GR{reg2}={v2:04x}>")
 
@@ -895,7 +896,7 @@ class Comet2:
             self.err_exit(f"unknown SVC op 'SVC {code2:04x}'")
 
     def op_SVC_IN(self, elem):
-        if self._inputf is None:
+        if self._fin is None:
             self.err_exit(f"no input source")
         start = self.get_gr(1)
         size = self.get_mem(self.get_gr(2))
@@ -906,7 +907,7 @@ class Comet2:
         for adr in range(start, end):
             adr = adr & Comet2.ADR_MAX
             if input_existed:
-                instr = self._inputf.read(1)
+                instr = self._fin.read(1)
                 input_existed = instr != ""
                 d = ord(instr)&0xff if input_existed else 0
             else:
