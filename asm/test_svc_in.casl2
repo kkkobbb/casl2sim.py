@@ -5,6 +5,6 @@ TEST    START
         LAD GR2,SIZE
         SVC 1
         JUMP LEND
-SAVE    DS 10
-SIZE    DC 10
+SIZE    DS 1
+SAVE    DS 256
 LEND    END

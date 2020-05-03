@@ -770,29 +770,30 @@ class TestComet2(unittest.TestCase):
 
     def test_op_SVC_IN(self):
         patterns = [
-                ("ABCDE", [
-                    0xf000, 0x0001, 0x1000, 0x1001, ord("A"), ord("B"), ord("C"),
-                    ord("D"), ord("E"), 0x1007, 0x1008, 0x1009, 0x0005], "just input"),
-                ("AB", [
-                    0xf000, 0x0001, 0x1000, 0x1001, ord("A"), ord("B"), 0x0000,
-                    0x0000, 0x0000, 0x1007, 0x1008, 0x1009, 0x0005], "short input"),
-                ("ABCDEFGH", [
-                    0xf000, 0x0001, 0x1000, 0x1001, ord("A"), ord("B"), ord("C"),
-                    ord("D"), ord("E"), 0x1007, 0x1008, 0x1009, 0x0005], "long input")]
+                (256, "just input"),
+                (0, "no input"),
+                (11, "short input"),
+                (300, "long input")]
 
-        mem_vals = [
-                0xf000, 0x0001, 0x1000, 0x1001, 0x1002, 0x1003, 0x1004,
-                0x1005, 0x1006, 0x1007, 0x1008, 0x1009, 0x0005]
-        for input_str, expected_vals, msg in patterns:
+        mem_vals = [0xf000, 0x0001]
+        mem_vals.extend([i for i in range(0x1000, 0x1100)])
+        for input_size, msg in patterns:
             with self.subTest(msg):
-                expected = [casl2sim.Element(v, 0) for v in expected_vals]
+                valid_input_size = min(input_size, 256)
+                input_vals = ["X" for _ in range(valid_input_size)]
+                expected_vals = mem_vals[:]
+                expected_vals[3] = min(valid_input_size + 1, 256)
+                expected_vals[4:4+valid_input_size] = [ord(s) for s in input_vals]
+                if len(input_vals) < 256:
+                    expected_vals[4+input_size] = 0xffff
+                expected = [casl2sim.Element(s, 0) for s in expected_vals]
                 c = casl2sim.Comet2([casl2sim.Element(v, 0) for v in mem_vals])
-                c._inputf = io.StringIO(input_str)
+                c._fin = io.StringIO("".join(input_vals))
                 c._pr = 0
-                c._gr = [0, 4, 12, 0, 0, 0, 0, 0]
+                c._gr = [0, 4, 3, 0, 0, 0, 0, 0]
                 elem = c.fetch()
                 c.op_SVC(elem)
-                self.assertEqual(expected, c._mem[:len(mem_vals)])
+                self.assertEqual(expected, c._mem[:len(expected)])
 
     def test_op_SVC_OUT(self):
         mem_vals = [
@@ -802,12 +803,12 @@ class TestComet2(unittest.TestCase):
         mem = [casl2sim.Element(v, 0) for v in mem_vals]
         expected = "  OUT: test OUT\n"
         c = casl2sim.Comet2(mem)
-        c._outputf = io.StringIO()
+        c._fout = io.StringIO()
         c._gr[1] = 4
         c._gr[2] = 14
         elem = c.fetch()
         c.op_SVC(elem)
-        actual = c._outputf.getvalue()
+        actual = c._fout.getvalue()
         self.assertEqual(expected, actual)
 # End TestComet2
 

@@ -899,21 +899,20 @@ class Comet2:
         if self._fin is None:
             self.err_exit(f"no input source")
         start = self.get_gr(1)
-        size = self.get_mem(self.get_gr(2))
-        end = start + size
-        self.output_debug(elem.line, f"SVC IN ({size})", False)
-        input_existed = True
-        # 入力が足りない場合、0で埋める
-        for adr in range(start, end):
-            adr = adr & Comet2.ADR_MAX
-            if input_existed:
-                instr = self._fin.read(1)
-                input_existed = instr != ""
-                d = ord(instr)&0xff if input_existed else 0
-            else:
-                d = 0
-            self.set_mem(adr, d)
-            self.output_debug(elem.line, f"IN: MEM[{adr:04x}] <- {d:04x}", False)
+        self.output_debug(elem.line, "SVC IN", False)
+        size = 0
+        for _ in range(256):
+            save_adr = (start + size) & Comet2.ADR_MAX
+            size += 1
+            instr = self._fin.read(1)
+            d = ord(instr)&0xff if instr != "" else (-1) & 0xffff
+            self.set_mem(save_adr, d)
+            self.output_debug(elem.line, f"IN: MEM[{save_adr:04x}] <- {d:04x}", False)
+            if instr == "":
+                break
+        size_adr = self.get_gr(2)
+        self.set_mem(size_adr, size)
+        self.output_debug(elem.line, f"IN: MEM[{size_adr:04x}] <- {size:04x}", False)
 
     def op_SVC_OUT(self, elem):
         msg = []
