@@ -3,8 +3,7 @@
 """
 CASL2シミュレータ
 
-STARTの位置から開始し、
-ENDの位置に来た時終了する
+STARTの位置から開始し、ENDの位置に来た時終了する
 """
 import argparse
 import contextlib
@@ -62,7 +61,6 @@ class Parser:
         if self._end < 0:
             self.err_exit("syntax error [not found 'END']")
         if len(self._mem) > self._end:
-            # ENDはプログラムの最後に記述する
             self.err_exit(f"syntax error ['END' must be last]")
         self.resolve_labels()
         self.allocate_consts()
@@ -143,48 +141,69 @@ class Parser:
             return macro
         return self.parse_op(op, args)
 
+    def parse_DC(self, line):
+        args = re.sub(RE_DC, "", line)
+        m = re.match(RE_DC_ARGS, args)
+        if m is None:
+            self.err_exit(f"syntax error [DC bad format] (L{self._line_num})")
+        arg = m.group(1)
+        args = m.group(3).strip()
+        mem_part = self.parse_DC_arg(arg)
+        while len(args) != 0:
+            if args[0] != ",":
+                self.err_exit(f"syntax error [','] (L{self._line_num})")
+            args = args[1:].strip()
+            m = re.match(RE_DC_ARGS, args)
+            arg, _, args = m.groups()
+            mem_part.extend(self.parse_DC_arg(arg))
+        return mem_part
+
+    def parse_DC_arg(self, arg):
+        mem_part = []
+        if arg[0] == "'": # string
+            st = arg[1:-1].replace("''", "'")
+            for s in st:
+                mem_part.append(Element(ord(s)&0xff, self._line_num))
+        elif arg[0] == "#": # hexadecimal
+            mem_part.append(Element(int(arg[1:], 16), self._line_num))
+        elif arg.isdecimal(): # decimal
+            mem_part.append(Element(int(arg), self._line_num))
+        else: # label
+            elem = Element(0, self._line_num)
+            self.add_unresolved_label(arg, elem)
+            mem_part.append(elem)
+        return mem_part
+
     def parse_macro(self, op, args):
-        mem_part = None
         if op == "IN":
             if len(args) != 2:
                 self.err_exit(f"bad args (L{self._line_num})")
-            mem_part = self.parse_op("PUSH", ["0", "GR1"])
-            mem_part.extend(self.parse_op("PUSH", ["0", "GR2"]))
-            mem_part.extend(self.parse_op("LAD", ["GR1", args[0]]))
-            mem_part.extend(self.parse_op("LAD", ["GR2", args[1]]))
-            mem_part.extend(self.parse_op("SVC", [str(Comet2.SVC_OP_IN)]))
-            mem_part.extend(self.parse_op("POP", ["GR2"]))
-            mem_part.extend(self.parse_op("POP", ["GR1"]))
+            return self.mk_macro((("PUSH", "0", "GR1"), ("PUSH", "0", "GR2"),
+                ("LAD", "GR1", args[0]), ("LAD", "GR2", args[1]),
+                ("SVC", str(Comet2.SVC_OP_IN)), ("POP", "GR2"), ("POP", "GR1")))
         elif op == "OUT":
             if len(args) != 2:
                 self.err_exit(f"bad args (L{self._line_num})")
-            mem_part = self.parse_op("PUSH", ["0", "GR1"])
-            mem_part.extend(self.parse_op("PUSH", ["0", "GR2"]))
-            mem_part.extend(self.parse_op("LAD", ["GR1", args[0]]))
-            mem_part.extend(self.parse_op("LAD", ["GR2", args[1]]))
-            mem_part.extend(self.parse_op("SVC", [str(Comet2.SVC_OP_OUT)]))
-            mem_part.extend(self.parse_op("POP", ["GR2"]))
-            mem_part.extend(self.parse_op("POP", ["GR1"]))
+            return self.mk_macro((("PUSH", "0", "GR1"), ("PUSH", "0", "GR2"),
+                ("LAD", "GR1", args[0]), ("LAD", "GR2", args[1]),
+                ("SVC", str(Comet2.SVC_OP_OUT)), ("POP", "GR2"), ("POP", "GR1")))
+            return self.mk_macro(asms)
         elif op == "RPUSH":
             if len(args) != 0:
                 self.err_exit(f"bad args (L{self._line_num})")
-            mem_part = self.parse_op("PUSH", ["0", "GR1"])
-            mem_part.extend(self.parse_op("PUSH", ["0", "GR2"]))
-            mem_part.extend(self.parse_op("PUSH", ["0", "GR3"]))
-            mem_part.extend(self.parse_op("PUSH", ["0", "GR4"]))
-            mem_part.extend(self.parse_op("PUSH", ["0", "GR5"]))
-            mem_part.extend(self.parse_op("PUSH", ["0", "GR6"]))
-            mem_part.extend(self.parse_op("PUSH", ["0", "GR7"]))
+            return self.mk_macro([("PUSH", "0", "{reg}") for reg in
+                    ["GR1", "GR2", "GR3", "GR4", "GR5", "GR6", "GR7"]])
         elif op == "RPOP":
             if len(args) != 0:
                 self.err_exit(f"bad args (L{self._line_num})")
-            mem_part = self.parse_op("POP", ["GR7"])
-            mem_part.extend(self.parse_op("POP", ["GR6"]))
-            mem_part.extend(self.parse_op("POP", ["GR5"]))
-            mem_part.extend(self.parse_op("POP", ["GR4"]))
-            mem_part.extend(self.parse_op("POP", ["GR3"]))
-            mem_part.extend(self.parse_op("POP", ["GR2"]))
-            mem_part.extend(self.parse_op("POP", ["GR1"]))
+            return self.mk_macro([("POP", "0", "{reg}") for reg in
+                    ["GR7", "GR6", "GR5", "GR4", "GR3", "GR2", "GR1"]])
+        return None
+
+    def mk_macro(self, asms):
+        mem_part = []
+        for asm in asms:
+            mem_part.extend(self.parse_op(asm[0], asm[1:]))
         return mem_part
 
     def parse_op(self, op, args):
@@ -237,19 +256,17 @@ class Parser:
         elif op == "PUSH":
             return self.op_2word(0x70, args, True)
         elif op == "POP":
-            opr1 = self.reg(args[0])
-            return self.mk_1word(0x71, opr1, 0)
+            return self.mk_1word(0x71, self.reg(args[0]), 0)
         elif op == "CALL":
             return self.op_2word(0x80, args, True)
         elif op == "RET":
             return self.mk_1word(0x81, 0, 0)
         elif op == "SVC":
-            # 1 IN:   GR1(保存先アドレス) GR2(サイズ)
-            # 2 OUT:  GR1(出力元アドレス) GR2(サイズ)
+            # 1 IN:   GR1(保存先アドレス) GR2(サイズ格納先アドレス)
+            # 2 OUT:  GR1(出力元アドレス) GR2(サイズ格納先アドレス)
             return self.mk_2word(0xf0, 0, args[0], 0)
         elif op == "START":
             if len(self._mem) != 0:
-                # STARTはプログラムの最初に記述する
                 self.err_exit("syntax error ['START' must be first]")
             if len(args) != 0:
                 self._start_label = args[0]
@@ -261,47 +278,9 @@ class Parser:
             return []
         elif op == "DS":
             return [Element(0, self._line_num) for _ in range(int(args[0]))]
-        elif op == "DC":
-            # not reached
+        elif op == "DC": # not reached
             self.err_exit(f"internal error DC (L{self._line_num})")
         self.err_exit(f"unknown operation (L{self._line_num}: {op})")
-
-    def parse_DC(self, line):
-        args = re.sub(RE_DC, "", line)
-        m = re.match(RE_DC_ARGS, args)
-        # 最低1つは引数がある前提
-        arg = m.group(1)
-        args = m.group(3).strip()
-        mem_part = self.parse_DC_arg(arg)
-        while len(args) != 0:
-            if args[0] != ",":
-                self.err_exit(f"syntax error [','] (L{self._line_num})")
-            args = args[1:].strip()
-            m = re.match(RE_DC_ARGS, args)
-            arg, _, args = m.groups()
-            mem_part.extend(self.parse_DC_arg(arg))
-        return mem_part
-
-    def parse_DC_arg(self, arg):
-        ln = self._line_num
-        mem_part = []
-        if arg[0] == "'":
-            # string
-            st = arg[1:-1].replace("''", "'")
-            for s in st:
-                mem_part.append(Element(ord(s)&0xff, ln))
-        elif arg[0] == "#":
-            # hexadecimal
-            mem_part.append(Element(int(arg[1:], 16), ln))
-        elif arg[0].isdecimal():
-            # decimal
-            mem_part.append(Element(int(arg), ln))
-        else:
-            # label
-            elem = Element(0, ln)
-            self.add_unresolved_label(arg, elem)
-            mem_part.append(elem)
-        return mem_part
 
     def op_1or2word(self, op1word, op2word, args):
         opr1 = self.reg(args[0])
@@ -314,16 +293,6 @@ class Parser:
         else:
             opr3 = self.reg(args[2])
         return self.mk_2word(op2word, opr1, opr2, opr3)
-
-    def op_1word(self, op, args):
-        opr1 = 0
-        opr2 = 0
-        len_args = len(args)
-        if len_args == 1:
-            opr1 = self.reg(args[0])
-        if len_args >= 2:
-            opr2 = self.reg(args[1])
-        return self.mk_1word(op, opr1, opr2)
 
     def op_2word(self, op, args, without_opr1=False):
         opr1 = 0
@@ -929,10 +898,11 @@ class Comet2:
         msg = []
         start = self.get_gr(1)
         end = start + self.get_mem(self.get_gr(2))
+        adr = start
         for adr in range(start, end):
             adr = adr & Comet2.ADR_MAX
             msg.append(self.get_mem(adr)&0xff)
-        self.output_debug(elem, f"SVC OUT MEM[{start:04x}]...MEM[{end:04x}]", False)
+        self.output_debug(elem, f"SVC OUT MEM[{start:04x}]...MEM[{adr:04x}]", False)
         self.output(Comet2.to_str(msg))
 
     @staticmethod
