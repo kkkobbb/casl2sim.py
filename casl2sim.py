@@ -47,7 +47,7 @@ class Parser:
         # 未割当の定数を格納する要素を保持する {定数(int): [格納先の要素(Element), ...]}
         self._unallocated_consts = {}
         # 開始位置 (START疑似命令の指定先)
-        self._start = 0
+        self._start = -1
         self._start_label = None
         # 終了位置 (END疑似命令の位置)
         self._end = -1
@@ -58,10 +58,12 @@ class Parser:
         for line in fin:
             self._line_num += 1
             self._mem.extend(self.parse_line(line))
+        if self._start < 0:
+            self.err_exit("syntax error [not found 'START']")
         if self._end < 0:
             self.err_exit("syntax error [not found 'END']")
         if len(self._mem) > self._end:
-            self.err_exit(f"syntax error ['END' must be last]")
+            self.err_exit("syntax error ['END' must be last]")
         self.resolve_labels()
         self.allocate_consts()
 
