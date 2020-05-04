@@ -15,7 +15,7 @@ casl2sim.Element.__repr__ = \
 class TestParser(unittest.TestCase):
     def test_parse_DC(self):
         p = casl2sim.Parser()
-        p.set_actual_label("LAB", 0xff)
+        p._defined_labels = {"LAB":0xff}
         expected = [
                 casl2sim.Element(12, 0),
                 casl2sim.Element(0xf, 0),
@@ -46,7 +46,7 @@ class TestParser(unittest.TestCase):
         for ops, args, mem, expected_vals, msg in patterns:
             with self.subTest(msg):
                 p._mem = mem
-                p._actual_labels = {"LAB":0xff}
+                p._defined_labels = {"LAB":0xff}
                 expected = [casl2sim.Element(v, 0) for v in expected_vals]
                 actual = p.op_1or2word(ops[0], ops[1], args)
                 p.resolve_labels()
