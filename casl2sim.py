@@ -58,14 +58,14 @@ class Parser:
         for line in fin:
             self._line_num += 1
             self._mem.extend(self.parse_line(line))
-        if self._start < 0:
-            self.err_exit("syntax error [not found 'START']")
         if self._end < 0:
             self.err_exit("syntax error [not found 'END']")
         if len(self._mem) > self._end:
             self.err_exit("syntax error ['END' must be last]")
         self.resolve_labels()
         self.allocate_consts()
+        if self._start < 0:
+            self.err_exit("syntax error [not found 'START']")
 
     def err_exit(self, msg):
         print(f"Assemble Error: {msg}", file=sys.stderr)
@@ -85,11 +85,11 @@ class Parser:
             self._unresolved_labels[label] = []
         self._unresolved_labels[label].append(elem)
 
-    def define_label(self, label, line_num):
+    def define_label(self, label, adr):
         if label in self._defined_labels:
             msg = "defined label" if self._defined_labels[label] else "reserved label"
             self.err_exit(f"{msg} (L{self._line_num}: {label})")
-        self._defined_labels[label] = line_num
+        self._defined_labels[label] = adr
 
     def add_unallocated_const(self, const, elem):
         if const not in self._unallocated_consts:
@@ -98,17 +98,17 @@ class Parser:
 
     def resolve_labels(self):
         if self._start_label is not None:
-            if self._start_label in self._defined_labels:
+            if self._start_label not in self._defined_labels:
                 self.err_exit(f"undefined label ({self._start_label})")
             self._start = self._defined_labels[self._start_label]
         for label, elemlist in self._unresolved_labels.items():
             if label not in self._defined_labels:
                 self.err_exit(f"undefined label ({label})")
-            addr = self._defined_labels[label] & 0xffff
+            addr = self._defined_labels[label]
             if addr is None:
                 self.err_exit(f"reserved label ({label})")
             for elem in elemlist:
-                elem.value = addr
+                elem.value = addr & 0xffff
 
     def allocate_consts(self):
         for const, elemlist in self._unallocated_consts.items():
@@ -189,7 +189,6 @@ class Parser:
             return self.mk_macro((("PUSH", "0", "GR1"), ("PUSH", "0", "GR2"),
                 ("LAD", "GR1", args[0]), ("LAD", "GR2", args[1]),
                 ("SVC", str(Comet2.SVC_OP_OUT)), ("POP", "GR2"), ("POP", "GR1")))
-            return self.mk_macro(asms)
         elif op == "RPUSH":
             if len(args) != 0:
                 self.err_exit(f"bad args (L{self._line_num})")
@@ -270,10 +269,10 @@ class Parser:
         elif op == "START":
             if len(self._mem) != 0:
                 self.err_exit("syntax error ['START' must be first]")
-            if len(args) != 0:
-                self._start_label = args[0]
-            else:
+            if len(args) == 0:
                 self._start = len(self._mem)
+            else:
+                self._start_label = args[0]
             return []
         elif op == "END":
             self._end = len(self._mem)

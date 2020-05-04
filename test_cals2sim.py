@@ -4,6 +4,7 @@ import io
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 import casl2sim
 
@@ -64,6 +65,63 @@ class TestParser(unittest.TestCase):
                 expected = [casl2sim.Element(v, 0) for v in expected_vals]
                 actual = p.op_2word(op, args)
                 self.assertEqual(expected, actual)
+
+    def test_resolve_labels(self):
+        def_labels = {"LAB":0x0020, "LST":0x0010, "ABC":0x0100}
+        patterns = [
+                ({}, None, {}, -1, {}, "empty"),
+                (def_labels, "LST", {}, 0x0010, {}, "start label"),
+                (def_labels, None, {"LAB":[casl2sim.Element(0, 0)]},
+                    -1, {"LAB":0x0020}, "label"),
+                (def_labels, None,
+                    {"LAB":[casl2sim.Element(0, 0), casl2sim.Element(0, 1), casl2sim.Element(0, 2)]},
+                    -1, {"LAB":0x0020}, "label (multi elements)"),
+                (def_labels, None,
+                    {"LAB":[casl2sim.Element(0, 0)], "LST":[casl2sim.Element(0, 1)]},
+                    -1, {"LAB":0x0020, "LST":0x0010}, "labels"),
+                (def_labels, "ABC",
+                    {"LAB":[casl2sim.Element(0, 0), casl2sim.Element(0, 1), casl2sim.Element(0, 2)]},
+                    0x0100, {"LAB":0x0020}, "start label & label (multi elements)")]
+
+        for def_labels, start_label, unr_labels, expected_start, expected_adrs, msg in patterns:
+            with self.subTest(msg):
+                p = casl2sim.Parser()
+                p._defined_labels.update(def_labels)
+                p._unresolved_labels = unr_labels
+                p._start_label = start_label
+                p.resolve_labels()
+                for key in p._unresolved_labels:
+                    self.assertTrue(key in expected_adrs)
+                    expected_adr = expected_adrs[key]
+                    actuals = p._unresolved_labels[key]
+                    for i, actual in enumerate(actuals):
+                        self.assertEqual(expected_adr, actual.value, msg=f"list[{i}]")
+                self.assertEqual(expected_start, p._start)
+
+    @mock.patch("casl2sim.Parser.err_exit", side_effect=SystemExit(1))
+    def test_resolve_labels_error(self, mock_err_exit):
+        """
+        未定義のラベルがあった場合、正しくメッセージを出力して終了するか
+        (SystemExit以外の例外が発生しないか)
+        """
+        def_labels = {"LAB":0x0020}
+        patterns = [
+                (def_labels, "LST", {}, "undefined label (LST)", "undefined start label"),
+                ({}, "LST", {}, "undefined label (LST)", "undefined start label (empty)"),
+                (def_labels, "LAB", {"LLL":None}, "undefined label (LLL)", "undefined label"),
+                (def_labels, None, {"GR1":None}, "reserved label (GR1)", "reserved label")]
+
+        for def_labels, start_label, unr_labels, expected_err_msg, msg in patterns:
+            with self.subTest(msg):
+                mock_err_exit.reset_mock()
+                p = casl2sim.Parser()
+                p._defined_labels.update(def_labels)
+                p._start_label = start_label
+                p._unresolved_labels = unr_labels
+                with self.assertRaises(SystemExit) as cm:
+                    p.resolve_labels()
+                self.assertEqual(1, cm.exception.code)
+                mock_err_exit.assert_called_once_with(expected_err_msg)
 # End TestParser
 
 class TestComet2(unittest.TestCase):
@@ -849,7 +907,6 @@ class TestMain(unittest.TestCase):
                 casl2sim.main()
         # エラーが発生しないこと
 # End TestMain
-
 
 if __name__ == "__main__":
     #unittest.main(verbosity=2)
