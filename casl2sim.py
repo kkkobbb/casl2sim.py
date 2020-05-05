@@ -23,11 +23,13 @@ class Element:
     """
     メモリの1要素分のデータ構造
     """
-    def __init__(self, v, l):
+    def __init__(self, v, l, label=None):
         # int この要素の値
         self.value = v
         # int (debug用) asmでの行番号を格納する asmと無関係または実行時に書き換えられた場合は0
         self.line = l
+        # 値がラベル由来の場合のラベル名 それ以外はNone
+        self.label = label
 # End Element
 
 class Parser:
@@ -83,6 +85,7 @@ class Parser:
     def add_unresolved_label(self, label, elem):
         if label not in self._unresolved_labels:
             self._unresolved_labels[label] = []
+        elem.label = label
         self._unresolved_labels[label].append(elem)
 
     def define_label(self, label, adr):
@@ -94,6 +97,7 @@ class Parser:
     def add_unallocated_const(self, const, elem):
         if const not in self._unallocated_consts:
             self._unallocated_consts[const] = []
+        elem.label=f"={const}"
         self._unallocated_consts[const].append(elem)
 
     def resolve_labels(self):
@@ -472,6 +476,7 @@ class Comet2:
             self.err_exit("MEM address out of range")
         self._mem[adr].value = val & 0xffff
         self._mem[adr].line = 0
+        self._mem[adr].label = None
 
     def fetch(self):
         m = self._mem[self._pr&0xffff]
@@ -488,33 +493,47 @@ class Comet2:
 
     def get_reg_adr(self, elem):
         code1 = elem.value
-        code2 = self.fetch().value
+        elem2 = self.fetch()
+        code2 = elem2.value
         _, opr1, opr2, opr3 = Comet2.decode_2word(code1, code2)
+        if opr3 == 0:
+            adr = opr2
+            if elem2.label is not None:
+                adr_str = f"'{elem2.label}'={adr:04x}"
+            else:
+                adr_str = f"{adr:04x}"
+        else:
+            offset = self.get_gr(opr3)
+            adr = opr2 + offset
+            if elem2.label is None:
+                adr_str = f"{adr:04x} <{opr2:04x} + GR{opr3}={offset:04x}>"
+            else:
+                adr_str = f"{adr:04x} <'{elem2.label}'={opr2:04x} + GR{opr3}={offset:04x}>"
         adr = opr2 if opr3 == 0 else opr2 + self.get_gr(opr3)
-        return (opr1, adr&0xffff)
+        return (opr1, adr&0xffff, adr_str)
 
     def op_NOP(self, elem):
         self.output_debug(elem, "NOP", False)
 
     def op_LD(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         val = self.get_mem(adr)
         self._zf = int(val == 0)
         self._sf = (val&0x8000) >> 15
         self._of = 0
         self.set_gr(reg, val)
-        self.output_debug(elem, f"GR{reg} <- MEM[{adr:04x}]={val:04x}")
+        self.output_debug(elem, f"GR{reg} <- MEM[{adr_str}]={val:04x}")
 
     def op_ST(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         val = self.get_gr(reg)
         self.set_mem(adr, val)
-        self.output_debug(elem, f"MEM[{adr:04x}] <- GR{reg}={val:04x}", False)
+        self.output_debug(elem, f"MEM[{adr_str}] <- GR{reg}={val:04x}", False)
 
     def op_LAD(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         self.set_gr(reg, adr)
-        self.output_debug(elem, f"GR{reg} <- {adr:04x}", False)
+        self.output_debug(elem, f"GR{reg} <- {adr_str}", False)
 
     def op_LD_REG(self, elem):
         _, reg1, reg2 = Comet2.decode_1word(elem.value)
@@ -554,36 +573,36 @@ class Comet2:
         return r & 0xffff
 
     def op_ADDA(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
         r = self.add_flag(v1, v2)
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} + MEM[{adr:04x}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} + MEM[{adr_str}]={v2:04x}>")
 
     def op_SUBA(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
         r = self.sub_flag(v1, v2)
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} - MEM[{adr:04x}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} - MEM[{adr_str}]={v2:04x}>")
 
     def op_ADDL(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
         r = self.add_flag(v1, v2, False)
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} +L MEM[{adr:04x}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} +L MEM[{adr_str}]={v2:04x}>")
 
     def op_SUBL(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
         r = self.sub_flag(v1, v2, False)
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} -L MEM[{adr:04x}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} -L MEM[{adr_str}]={v2:04x}>")
 
     def op_ADDA_REG(self, elem):
         _, reg1, reg2 = Comet2.decode_1word(elem.value)
@@ -625,28 +644,28 @@ class Comet2:
         return r & 0xffff
 
     def op_AND(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
         r = self.bit_flag(operator.and_, v1, v2)
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} & MEM[{adr:04x}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} & MEM[{adr_str}]={v2:04x}>")
 
     def op_OR(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
         r = self.bit_flag(operator.or_, v1, v2)
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} | MEM[{adr:04x}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} | MEM[{adr_str}]={v2:04x}>")
 
     def op_XOR(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
         r = self.bit_flag(operator.xor, v1, v2)
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} ^ MEM[{adr:04x}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} ^ MEM[{adr_str}]={v2:04x}>")
 
     def op_AND_REG(self, elem):
         _, reg1, reg2 = Comet2.decode_1word(elem.value)
@@ -689,18 +708,18 @@ class Comet2:
             self._sf = int(v1 < v2)
 
     def op_CPA(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
         self.cmp_flag(v1, v2)
-        self.output_debug(elem, f"<GR{reg}={v1:04x} - MEM[{adr:04x}]={v2:04x}>")
+        self.output_debug(elem, f"<GR{reg}={v1:04x} - MEM[{adr_str}]={v2:04x}>")
 
     def op_CPL(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
         self.cmp_flag(v1, v2, False)
-        self.output_debug(elem, f"<GR{reg}={v1:04x} -L MEM[{adr:04x}]={v2:04x}>")
+        self.output_debug(elem, f"<GR{reg}={v1:04x} -L MEM[{adr_str}]={v2:04x}>")
 
     def op_CPA_REG(self, elem):
         _, reg1, reg2 = Comet2.decode_1word(elem.value)
@@ -717,7 +736,7 @@ class Comet2:
         self.output_debug(elem, f"<GR{reg1}={v1:04x} -L GR{reg2}={v2:04x}>")
 
     def op_SLA(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
         shift = v2 if v2 < self.REG_BITS else self.REG_BITS
@@ -728,10 +747,10 @@ class Comet2:
         self._zf = int(r == 0)
         self._sf = (v1 & 0x8000) >> 15
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} << MEM[{adr:04x}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} << MEM[{adr_str}]={v2:04x}>")
 
     def op_SRA(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
         shift = v2 if v2 < self.REG_BITS else self.REG_BITS
@@ -742,10 +761,10 @@ class Comet2:
         self._zf = int(r == 0)
         self._sf = (v1 & 0x8000) >> 15
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} >> MEM[{adr:04x}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} >> MEM[{adr_str}]={v2:04x}>")
 
     def op_SLL(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
         shift = v2 if v2 < self.REG_BITS + 1 else self.REG_BITS + 1
@@ -756,10 +775,10 @@ class Comet2:
         self._zf = int(r == 0)
         self._sf = 0
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} <<L MEM[{adr:04x}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} <<L MEM[{adr_str}]={v2:04x}>")
 
     def op_SRL(self, elem):
-        reg, adr = self.get_reg_adr(elem)
+        reg, adr, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
         v2 = self.get_mem(adr)
         shift = v2 if v2 < self.REG_BITS + 1 else self.REG_BITS + 1
@@ -770,68 +789,59 @@ class Comet2:
         self._zf = int(r == 0)
         self._sf = 0
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} >>L MEM[{adr:04x}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} >>L MEM[{adr_str}]={v2:04x}>")
 
     def op_JMI(self, elem):
-        _, adr = self.get_reg_adr(elem)
+        _, adr, adr_str = self.get_reg_adr(elem)
         msg = ""
         if self._sf != 0:
             self._pr = adr
-            msg = f"PR <- {adr:04x} "
+            msg = f"PR <- {adr_str} "
         self.output_debug(elem, msg + "<if SF == 1>", False)
 
     def op_JNZ(self, elem):
-        _, adr = self.get_reg_adr(elem)
+        _, adr, adr_str = self.get_reg_adr(elem)
         msg = ""
         if self._zf == 0:
             self._pr = adr
-            msg = f"PR <- {adr:04x} "
+            msg = f"PR <- {adr_str} "
         self.output_debug(elem, msg + "<if ZF == 0>", False)
 
     def op_JZE(self, elem):
-        _, adr = self.get_reg_adr(elem)
+        _, adr, adr_str = self.get_reg_adr(elem)
         msg = ""
         if self._zf != 0:
             self._pr = adr
-            msg = f"PR <- {adr:04x} "
+            msg = f"PR <- {adr_str} "
         self.output_debug(elem, msg + "<if ZF == 1>", False)
 
     def op_JUMP(self, elem):
-        _, adr = self.get_reg_adr(elem)
+        _, adr, adr_str = self.get_reg_adr(elem)
         self._pr = adr
-        self.output_debug(elem, f"PR <- {adr:04x}", False)
+        self.output_debug(elem, f"PR <- {adr_str}", False)
 
     def op_JPL(self, elem):
-        _, adr = self.get_reg_adr(elem)
+        _, adr, adr_str = self.get_reg_adr(elem)
         msg = ""
         if self._sf == 0 and self._zf == 0:
             self._pr = adr
-            msg = f"PR <- {adr:04x} "
+            msg = f"PR <- {adr_str} "
         self.output_debug(elem, msg + "<if SF == 0 and ZF == 0>", False)
 
     def op_JOV(self, elem):
-        _, adr = self.get_reg_adr(elem)
+        _, adr, adr_str = self.get_reg_adr(elem)
         msg = ""
         if self._of != 0:
             self._pr = adr
-            msg = f"PR <- {adr:04x} "
+            msg = f"PR <- {adr_str} "
         self.output_debug(elem, msg + "<if OF == 1>", False)
 
     def op_PUSH(self, elem):
-        code1 = elem.value
-        code2 = self.fetch().value
-        _, _, opr2, opr3 = Comet2.decode_2word(code1, code2)
-        val = opr2
-        if opr3 != 0:
-            offset = self.get_gr(opr3)
-            val = (val + offset) & 0xffff
-            msg_val = f"<{opr2:04x} + GR{opr3}={offset:04x}>"
-        else:
-            msg_val = f"<{opr2:04x}>"
+        _, adr, adr_str = self.get_reg_adr(elem)
         self._sp = (self._sp - 1) & 0xffff
-        self.set_mem(self._sp, val)
+        self.set_mem(self._sp, adr)
         self.output_debug(elem,
-                f"MEM[{self._sp:04x}] <- {val:04x} {msg_val} (SP <- {self._sp:04x})", False)
+                f"MEM[SP={self._sp:04x}] <- {adr_str} (SP <- {self._sp:04x})", False)
 
     def op_POP(self, elem):
         _, reg, _ = Comet2.decode_1word(elem.value)
@@ -840,16 +850,16 @@ class Comet2:
         self.set_gr(reg, val)
         self._sp = (self._sp + 1) & 0xffff
         self.output_debug(elem,
-                f"GR{reg} <- {val:04x} <MEM[{adr:04x}]> (SP <- {self._sp:04x})", False)
+                f"GR{reg} <- {val:04x} <MEM[SP={adr:04x}]> (SP <- {self._sp:04x})", False)
 
     def op_CALL(self, elem):
-        _, next_pr = self.get_reg_adr(elem)
+        _, adr, adr_str = self.get_reg_adr(elem)
         self._sp = (self._sp - 1) & 0xffff
         val = self._pr
         self.set_mem(self._sp, val)
-        self._pr = next_pr
+        self._pr = adr
         self.output_debug(elem,
-                f"PR <- {next_pr:04x}, MEM[{self._sp:04x}] <- PR={val:04x} " +
+                f"PR <- {adr_str}, MEM[SP={self._sp:04x}] <- PR={val:04x} " +
                 f"(SP <- {self._sp:04x})", False)
 
     def op_RET(self, elem):

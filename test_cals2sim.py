@@ -9,9 +9,10 @@ from unittest import mock
 import casl2sim
 
 
-casl2sim.Element.__eq__ = lambda s,o: s.value == o.value and s.line == o.line
+casl2sim.Element.__eq__ = lambda s,o: s.value == o.value and s.line == o.line and s.label == o.label
 casl2sim.Element.__repr__ = \
-        lambda s: f"<{s.__module__}.{type(s).__name__} value={s.value:04x}, line={s.line}>"
+        lambda s: f"<{s.__module__}.{type(s).__name__} " + \
+        f"value={s.value:04x}, line={s.line}, label='{s.label}'>"
 
 class TestParser(unittest.TestCase):
     def test_parse_DC(self):
@@ -20,7 +21,7 @@ class TestParser(unittest.TestCase):
         expected = [
                 casl2sim.Element(12, 0),
                 casl2sim.Element(0xf, 0),
-                casl2sim.Element(0xff, 0),
+                casl2sim.Element(0xff, 0, "LAB"),
                 casl2sim.Element(ord("a"), 0),
                 casl2sim.Element(ord("b"), 0),
                 casl2sim.Element(ord("c"), 0),
@@ -34,21 +35,21 @@ class TestParser(unittest.TestCase):
 
     def test_op_1or2word(self):
         patterns = [
-                ((0xff, 0xf0), ["GR0", "GR1"], [], (0xff01,), "1 word"),
+                ((0xff, 0xf0), ["GR0", "GR1"], [],
+                    (0xff01,), (None,), "1 word"),
                 ((0xff, 0xf0), ["GR3", "LAB", "GR5"], [],
-                    (0xf035, 0x00ff), "2 words label"),
-                ((0xff, 0xf0), ["GR3", "=11", "GR5"],
-                    [casl2sim.Element(0, 0)]*3,
-                    (0xf035, 0x0003), "2 words const addr"),
+                    (0xf035, 0x00ff), (None, "LAB"), "2 words label"),
+                ((0xff, 0xf0), ["GR3", "=11", "GR5"], [casl2sim.Element(0, 0)]*3,
+                    (0xf035, 0x0003), (None, "=11"), "2 words const addr"),
                 ((0xff, 0xf0), ["GR3", "11", "GR5"], [],
-                    (0xf035, 0x000b), "2 words const literal")]
+                    (0xf035, 0x000b), (None, None), "2 words const literal")]
 
         p = casl2sim.Parser()
-        for ops, args, mem, expected_vals, msg in patterns:
+        for ops, args, mem, expected_vals, expected_lbls, msg in patterns:
             with self.subTest(msg):
                 p._mem = mem
                 p._defined_labels = {"LAB":0xff}
-                expected = [casl2sim.Element(v, 0) for v in expected_vals]
+                expected = [casl2sim.Element(v, 0, b) for v, b in zip(expected_vals, expected_lbls)]
                 actual = p.op_1or2word(ops[0], ops[1], args)
                 p.resolve_labels()
                 p.allocate_consts()
