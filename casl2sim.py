@@ -946,11 +946,12 @@ def main():
     gasm = parser.add_argument_group("assembly optional arguments")
     gasm.add_argument("--start-offset", type=base_int, default=0,
             help="プログラムを配置するアドレス", metavar="n")
-    gasm.add_argument("--print-labels", action="store_true",
-            help="アセンブル後にラベルのアドレス一覧を出力する")
-    gasm.add_argument("--emit-bin", action="store_true", help="アセンブル後のバイナリを出力して終了する")
+    gasm.add_argument("-l", "--print-labels", action="store_true",
+            help="ラベルのアドレス一覧を出力する")
+    gasm.add_argument("-b", "--print-bin", action="store_true", help="アセンブル後のバイナリを出力する")
+    gasm.add_argument("-a", "--parse-only", action="store_true", help="実行せずに終了する")
     grun = parser.add_argument_group("runtime optional arguments")
-    grun.add_argument("-p", "--print-regs", action="store_true", help="実行前後にレジスタの内容を表示する")
+    grun.add_argument("-P", "--print-regs", action="store_true", help="実行前後にレジスタの内容を表示する")
     grun.add_argument("-C", "--virtual-call", action="store_true",
             help="実行前にENDのアドレスをスタックに積む")
     grun.add_argument("--input-src", help="実行時の入力元 (default: stdin)", metavar="file")
@@ -997,11 +998,13 @@ def main():
                 continue
             print(f"# {label:>10}: {adr:04x}")
 
-    if args.emit_bin:
+    if args.print_bin:
         width = 8
         for i in range(0, len(mem), width):
             line = " ".join([f"{m.value:04x}" for m in mem[i:i+width]])
             print(f"[{i:04x}]: {line}")
+
+    if args.parse_only:
         return
 
     c = Comet2(mem, args.print_regs)
