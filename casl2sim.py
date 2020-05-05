@@ -463,9 +463,8 @@ class Comet2:
         if not self._print_regs or self._fdbg is None:
             return
         grlist = " ".join([f"GR{i}={gr:04x}" for i, gr in enumerate(self._gr)])
-        self._fdbg.write("\nREG LIST\n")
-        self._fdbg.write(f"  {grlist}\n")
-        self._fdbg.write(f"  PR={self._pr:04x} SP={self._sp:04x} ")
+        self._fdbg.write(f"\n-REGS: {grlist}\n")
+        self._fdbg.write(f"-REGS: PR={self._pr:04x} SP={self._sp:04x} ")
         self._fdbg.write(f"ZF={self._zf} SF={self._sf} OF={self._of}\n\n")
 
     def get_gr(self, n):
@@ -997,12 +996,14 @@ def main():
             if adr is None:
                 continue
             print(f"# {label:>10}: {adr:04x}")
+        print("")
 
     if args.print_bin:
         width = 8
         for i in range(0, len(mem), width):
             line = " ".join([f"{m.value:04x}" for m in mem[i:i+width]])
-            print(f"[{i:04x}]: {line}")
+            print(f"# [{i:04x}]: {line}")
+        print("")
 
     if args.parse_only:
         return
