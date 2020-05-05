@@ -9,7 +9,7 @@ from unittest import mock
 import casl2sim
 
 
-casl2sim.Element.__eq__ = lambda s,o: s.value == o.value and s.line == o.line and s.label == o.label
+casl2sim.Element.__eq__ = lambda s,o: s.value == o.value and s.line == o.line and s.vlabel == o.vlabel
 casl2sim.Element.__repr__ = \
         lambda s: f"<{s.__module__}.{type(s).__name__} " + \
         f"value={s.value:04x}, line={s.line}, label='{s.label}'>"
@@ -107,10 +107,12 @@ class TestParser(unittest.TestCase):
         """
         def_labels = {"LAB":0x0020}
         patterns = [
-                (def_labels, "LST", {}, "undefined label (LST)", "undefined start label"),
-                ({}, "LST", {}, "undefined label (LST)", "undefined start label (empty)"),
-                (def_labels, "LAB", {"LLL":None}, "undefined label (LLL)", "undefined label"),
-                (def_labels, None, {"GR1":None}, "reserved label (GR1)", "reserved label")]
+                (def_labels, "LST", {}, "undefined start label (LST)", "undefined start label"),
+                ({}, "LST", {}, "undefined start label (LST)", "undefined start label (empty)"),
+                (def_labels, "LAB", {"LLL":[casl2sim.Element(0, 1)]},
+                    "undefined label (L1: LLL)", "undefined label"),
+                (def_labels, None, {"GR1":[casl2sim.Element(0, 212)]},
+                    "reserved label (L212: GR1)", "reserved label")]
 
         for def_labels, start_label, unr_labels, expected_err_msg, msg in patterns:
             with self.subTest(msg):

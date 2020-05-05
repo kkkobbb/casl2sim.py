@@ -23,13 +23,13 @@ class Element:
     """
     メモリの1要素分のデータ構造
     """
-    def __init__(self, v, l, label=None):
+    def __init__(self, v, l, vlabel=None):
         # int この要素の値
         self.value = v
         # int (debug用) asmでの行番号を格納する asmと無関係または実行時に書き換えられた場合は0
         self.line = l
         # 値がラベル由来の場合のラベル名 それ以外はNone
-        self.label = label
+        self.vlabel = vlabel
 # End Element
 
 class Parser:
@@ -89,7 +89,7 @@ class Parser:
     def add_unresolved_label(self, label, elem):
         if label not in self._unresolved_labels:
             self._unresolved_labels[label] = []
-        elem.label = label
+        elem.vlabel = label
         self._unresolved_labels[label].append(elem)
 
     def define_label(self, label, adr):
@@ -101,7 +101,7 @@ class Parser:
     def add_unallocated_const(self, const, elem):
         if const not in self._unallocated_consts:
             self._unallocated_consts[const] = []
-        elem.label=f"={const}"
+        elem.vlabel=f"={const}"
         self._unallocated_consts[const].append(elem)
 
     def resolve_labels(self):
@@ -487,7 +487,7 @@ class Comet2:
             self.err_exit("MEM address out of range")
         self._mem[adr].value = val & 0xffff
         self._mem[adr].line = 0
-        self._mem[adr].label = None
+        self._mem[adr].vlabel = None
 
     def fetch(self):
         m = self._mem[self._pr&0xffff]
@@ -509,17 +509,17 @@ class Comet2:
         _, opr1, opr2, opr3 = Comet2.decode_2word(code1, code2)
         if opr3 == 0:
             adr = opr2
-            if elem2.label is not None:
-                adr_str = f"'{elem2.label}'={adr:04x}"
+            if elem2.vlabel is not None:
+                adr_str = f"'{elem2.vlabel}'={adr:04x}"
             else:
                 adr_str = f"{adr:04x}"
         else:
             offset = self.get_gr(opr3)
             adr = opr2 + offset
-            if elem2.label is None:
+            if elem2.vlabel is None:
                 adr_str = f"{adr:04x} <{opr2:04x} + GR{opr3}={offset:04x}>"
             else:
-                adr_str = f"{adr:04x} <'{elem2.label}'={opr2:04x} + GR{opr3}={offset:04x}>"
+                adr_str = f"{adr:04x} <'{elem2.vlabel}'={opr2:04x} + GR{opr3}={offset:04x}>"
         adr = opr2 if opr3 == 0 else opr2 + self.get_gr(opr3)
         return (opr1, adr&0xffff, adr_str)
 
