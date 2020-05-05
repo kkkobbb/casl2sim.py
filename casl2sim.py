@@ -950,25 +950,25 @@ def main():
     gasm.add_argument("-b", "--print-bin", action="store_true", help="アセンブル後のバイナリを出力する")
     gasm.add_argument("-a", "--parse-only", action="store_true", help="実行せずに終了する")
     grun = parser.add_argument_group("runtime optional arguments")
-    grun.add_argument("-P", "--print-regs", action="store_true", help="実行前後にレジスタの内容を表示する")
+    grun.add_argument("-R", "--print-regs", action="store_true", help="実行前後にレジスタの内容を表示する")
     grun.add_argument("-C", "--virtual-call", action="store_true",
             help="実行前にENDのアドレスをスタックに積む")
     grun.add_argument("--input-src", help="実行時の入力元 (default: stdin)", metavar="file")
     grun.add_argument("--output", help="実行時の出力先 (default: stdout)", metavar="file")
     grun.add_argument("--output-debug", help="実行時のデバッグ出力先 (default: stdout)", metavar="file")
-    grun.add_argument("--set-gr0", type=base_int, default=0, help="GR0の初期値", metavar="n")
-    grun.add_argument("--set-gr1", type=base_int, default=0, help="GR1の初期値", metavar="n")
-    grun.add_argument("--set-gr2", type=base_int, default=0, help="GR2の初期値", metavar="n")
-    grun.add_argument("--set-gr3", type=base_int, default=0, help="GR3の初期値", metavar="n")
-    grun.add_argument("--set-gr4", type=base_int, default=0, help="GR4の初期値", metavar="n")
-    grun.add_argument("--set-gr5", type=base_int, default=0, help="GR5の初期値", metavar="n")
-    grun.add_argument("--set-gr6", type=base_int, default=0, help="GR6の初期値", metavar="n")
-    grun.add_argument("--set-gr7", type=base_int, default=0, help="GR7の初期値", metavar="n")
-    grun.add_argument("--set-pr", type=base_int, help="PRの初期値", metavar="n")
-    grun.add_argument("--set-sp", type=base_int, default=0, help="SPの初期値", metavar="n")
-    grun.add_argument("--set-zf", type=base_int, default=0, help="FR(zero flag)の初期値", metavar="n")
-    grun.add_argument("--set-sf", type=base_int, default=0, help="FR(sign flag)の初期値", metavar="n")
-    grun.add_argument("--set-of", type=base_int, default=0, help="FR(overflow flag)の初期値", metavar="n")
+    grun.add_argument("--gr0", type=base_int, default=0, help="GR0の初期値", metavar="n")
+    grun.add_argument("--gr1", type=base_int, default=0, help="GR1の初期値", metavar="n")
+    grun.add_argument("--gr2", type=base_int, default=0, help="GR2の初期値", metavar="n")
+    grun.add_argument("--gr3", type=base_int, default=0, help="GR3の初期値", metavar="n")
+    grun.add_argument("--gr4", type=base_int, default=0, help="GR4の初期値", metavar="n")
+    grun.add_argument("--gr5", type=base_int, default=0, help="GR5の初期値", metavar="n")
+    grun.add_argument("--gr6", type=base_int, default=0, help="GR6の初期値", metavar="n")
+    grun.add_argument("--gr7", type=base_int, default=0, help="GR7の初期値", metavar="n")
+    grun.add_argument("--pr", type=base_int, help="PRの初期値", metavar="n")
+    grun.add_argument("--sp", type=base_int, default=0, help="SPの初期値", metavar="n")
+    grun.add_argument("--zf", type=base_int, default=0, help="FR(zero flag)の初期値", metavar="n")
+    grun.add_argument("--sf", type=base_int, default=0, help="FR(sign flag)の初期値", metavar="n")
+    grun.add_argument("--of", type=base_int, default=0, help="FR(overflow flag)の初期値", metavar="n")
 
     # レジスタ、メモリの値はデフォルトでは0
     # --virtual-call: RETで終了するような、STARTのラベル呼び出しを前提としたコードを正常終了させる
@@ -984,10 +984,10 @@ def main():
         used_stdin = f == sys.stdin
         p.parse(f)
     mem = p.get_mem()
-    if args.set_pr is None:
+    if args.pr is None:
         start = p.get_start()
     else:
-        start = args.set_pr
+        start = args.pr
     end = p.get_end()
 
     if args.print_labels:
@@ -1009,9 +1009,9 @@ def main():
         return
 
     c = Comet2(mem, args.print_regs)
-    grlist = [args.set_gr0, args.set_gr1, args.set_gr2, args.set_gr3,
-            args.set_gr4, args.set_gr5, args.set_gr6, args.set_gr7]
-    c.init_regs(grlist, 0, args.set_sp, args.set_zf, args.set_sf, args.set_of)
+    grlist = [args.gr0, args.gr1, args.gr2, args.gr3,
+            args.gr4, args.gr5, args.gr6, args.gr7]
+    c.init_regs(grlist, 0, args.sp, args.zf, args.sf, args.of)
     with contextlib.ExitStack() as stack:
         fout = sys.stdout
         if args.output == "":
