@@ -35,8 +35,9 @@ class Element:
 class Parser:
     REG_NAME_LIST = ["GR0", "GR1", "GR2", "GR3", "GR4", "GR5", "GR6", "GR7"]
 
-    def __init__(self):
-        self._mem = []
+    def __init__(self, start_offset=0):
+        self._start_offset = start_offset
+        self._mem = [Element(0, 0) for _ in range(start_offset)]
         # 未解決のラベルを格納する要素を保持する {ラベル名(str):[格納先の要素(Element), ...]}
         # keyが重複した場合、リストに追加していく
         self._unresolved_labels = {}
@@ -271,7 +272,7 @@ class Parser:
             # 2 OUT:  GR1(出力元アドレス) GR2(サイズ格納先アドレス)
             return self.mk_2word(0xf0, 0, args[0], 0)
         elif op == "START":
-            if len(self._mem) != 0:
+            if len(self._mem) != self._start_offset:
                 self.err_exit("syntax error ['START' must be first]")
             if len(args) == 0:
                 self._start = len(self._mem)
@@ -351,16 +352,17 @@ class Comet2:
     SVC_OP_OUT = 2
 
     def __init__(self, mem, print_regs=False):
+        self._print_regs = print_regs
         self._gr = [0] * Comet2.REG_NUM
         self._pr = 0
         self._sp = 0
         self._zf = 0
         self._sf = 0
         self._of = 0
-        self.init_mem(mem)
         self._fin = None
         self._fout = None
         self._fdbg =None
+        self.init_mem(mem)
         self.OP_TABLE = {
                 0x00:self.op_NOP,
                 0x10:self.op_LD, 0x11:self.op_ST, 0x12:self.op_LAD,
@@ -381,7 +383,6 @@ class Comet2:
                 0x70:self.op_PUSH, 0x71:self.op_POP,
                 0x80:self.op_CALL, 0x81:self.op_RET,
                 0xf0:self.op_SVC}
-        self._print_regs = print_regs
 
     def init_mem(self, mem):
         self._mem = mem
@@ -448,7 +449,7 @@ class Comet2:
         self._fout.write(f"  OUT: {msg}\n")
 
     def output_regs(self):
-        if not self._print_regs:
+        if not self._print_regs or self._fdbg is None:
             return
         grlist = " ".join([f"GR{i}={gr:04x}" for i, gr in enumerate(self._gr)])
         self._fdbg.write("\nREG LIST\n")
@@ -932,6 +933,8 @@ def main():
             formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("asmfile", help="casl2 code ('-': stdin)")
     gasm = parser.add_argument_group("assembly optional arguments")
+    gasm.add_argument("--start-offset", type=base_int, default=0,
+            help="プログラムを配置するアドレス", metavar="n")
     gasm.add_argument("--emit-bin", action="store_true", help="アセンブル後のバイナリを出力して終了する")
     grun = parser.add_argument_group("runtime optional arguments")
     grun.add_argument("-p", "--print-regs", action="store_true", help="実行前後にレジスタの内容を表示する")
@@ -959,7 +962,7 @@ def main():
 
     args = parser.parse_args()
 
-    p = Parser()
+    p = Parser(args.start_offset)
     with contextlib.ExitStack() as stack:
         if args.asmfile == "-":
             f = sys.stdin
