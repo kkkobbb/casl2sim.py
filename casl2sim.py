@@ -83,6 +83,9 @@ class Parser:
     def get_end(self):
         return self._end
 
+    def get_labels(self):
+        return self._defined_labels
+
     def add_unresolved_label(self, label, elem):
         if label not in self._unresolved_labels:
             self._unresolved_labels[label] = []
@@ -104,16 +107,24 @@ class Parser:
     def resolve_labels(self):
         if self._start_label is not None:
             if self._start_label not in self._defined_labels:
-                self.err_exit(f"undefined label ({self._start_label})")
+                self.err_exit(f"undefined start label ({self._start_label})")
             self._start = self._defined_labels[self._start_label]
         for label, elemlist in self._unresolved_labels.items():
             if label not in self._defined_labels:
-                self.err_exit(f"undefined label ({label})")
+                linemsgs = self.get_linemsgs(elemlist)
+                self.err_exit(f"undefined label ({linemsgs}: {label})")
             addr = self._defined_labels[label]
             if addr is None:
-                self.err_exit(f"reserved label ({label})")
+                linemsgs = self.get_linemsgs(elemlist)
+                self.err_exit(f"reserved label ({linemsgs}: {label})")
             for elem in elemlist:
                 elem.value = addr & 0xffff
+
+    def get_linemsgs(self, elemlist):
+        linemsgs = []
+        for elem in elemlist:
+            linemsgs.append(f"L{elem.line}")
+        return ", ".join(linemsgs)
 
     def allocate_consts(self):
         for const, elemlist in self._unallocated_consts.items():
@@ -935,6 +946,8 @@ def main():
     gasm = parser.add_argument_group("assembly optional arguments")
     gasm.add_argument("--start-offset", type=base_int, default=0,
             help="プログラムを配置するアドレス", metavar="n")
+    gasm.add_argument("--print-labels", action="store_true",
+            help="アセンブル後にラベルのアドレス一覧を出力する")
     gasm.add_argument("--emit-bin", action="store_true", help="アセンブル後のバイナリを出力して終了する")
     grun = parser.add_argument_group("runtime optional arguments")
     grun.add_argument("-p", "--print-regs", action="store_true", help="実行前後にレジスタの内容を表示する")
@@ -976,6 +989,13 @@ def main():
     else:
         start = args.set_pr
     end = p.get_end()
+
+    if args.print_labels:
+        labeldict = p.get_labels()
+        for label, adr in labeldict.items():
+            if adr is None:
+                continue
+            print(f"# {label:>10}: {adr:04x}")
 
     if args.emit_bin:
         width = 8
