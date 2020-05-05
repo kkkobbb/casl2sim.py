@@ -935,7 +935,8 @@ def main():
     gasm.add_argument("--emit-bin", action="store_true", help="アセンブル後のバイナリを出力して終了する")
     grun = parser.add_argument_group("runtime optional arguments")
     grun.add_argument("-p", "--print-regs", action="store_true", help="実行前後にレジスタの内容を表示する")
-    grun.add_argument("--virtual-call", action="store_true", help="実行前にENDのアドレスをスタックに積む")
+    grun.add_argument("-C", "--virtual-call", action="store_true",
+            help="実行前にENDのアドレスをスタックに積む")
     grun.add_argument("--input-src", help="実行時の入力元 (default: stdin)", metavar="file")
     grun.add_argument("--output", help="実行時の出力先 (default: stdout)", metavar="file")
     grun.add_argument("--output-debug", help="実行時のデバッグ出力先 (default: stdout)", metavar="file")
