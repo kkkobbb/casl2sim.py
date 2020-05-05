@@ -23,13 +23,15 @@ class Element:
     """
     メモリの1要素分のデータ構造
     """
-    def __init__(self, v, l, vlabel=None):
+    def __init__(self, v, l, vlabel=None, label=None):
         # int この要素の値
         self.value = v
-        # int (debug用) asmでの行番号を格納する asmと無関係または実行時に書き換えられた場合は0
+        # int (debug用) asmでの行番号を格納する asmと無関係または値が実行時に書き換えられた場合は0
         self.line = l
-        # 値がラベル由来の場合のラベル名 それ以外はNone
+        # 値がラベル由来の場合のラベル名 それ以外はNone 値が実行時に書き換えられた場合はNone
         self.vlabel = vlabel
+        # ラベルが指定された番地の場合のラベル名 それ以外はNone この値は実行時に変更されない
+        self.label = label
 # End Element
 
 class Parser:
@@ -69,6 +71,7 @@ class Parser:
         self.allocate_consts()
         if self._start < 0:
             self.err_exit("syntax error [not found 'START']")
+        self.set_labelinfo()
 
     def err_exit(self, msg):
         print(f"Assemble Error: {msg}", file=sys.stderr)
@@ -132,6 +135,14 @@ class Parser:
             addr = (len(self._mem) - 1) & 0xffff
             for elem in elemlist:
                 elem.value = addr
+
+    def set_labelinfo(self):
+        for label, adr in self._defined_labels.items():
+            if adr is None:
+                continue
+            while len(self._mem) <= adr:
+                self._mem.append(Element(0, 0))
+            self._mem[adr].label = label
 
     def parse_line(self, line):
         """
@@ -452,7 +463,11 @@ class Comet2:
             return
         lstr = "--:" if elem.line == 0 else f"L{elem.line}:"
         flags = f" (ZF <- {self._zf}, SF <- {self._sf}, OF <- {self._of})" if print_flags else ""
-        self._fdbg.write(f"{lstr:>6} [{self._inst_adr:04x}] {msg}{flags}\n")
+        label = self._mem[self._inst_adr].label
+        labelmsg = ""
+        if label is not None:
+            labelmsg = f"'{label}'="
+        self._fdbg.write(f"{lstr:>6} [{labelmsg}{self._inst_adr:04x}] {msg}{flags}\n")
 
     def output(self, msg):
         if self._fout is None:
