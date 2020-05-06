@@ -373,8 +373,9 @@ class Comet2:
     SVC_OP_IN = 1
     SVC_OP_OUT = 2
 
-    def __init__(self, mem, print_regs=False):
+    def __init__(self, mem, print_regs=False, simple_output=False):
         self._print_regs = print_regs
+        self._simple_output = simple_output
         self._gr = [0] * Comet2.REG_NUM
         self._pr = 0
         self._sp = 0
@@ -472,7 +473,10 @@ class Comet2:
     def output(self, msg):
         if self._fout is None:
             return
-        self._fout.write(f"  OUT: {msg}\n")
+        if self._simple_output:
+            self._fout.write(f"{msg}")
+        else:
+            self._fout.write(f"  OUT: {msg}\n")
 
     def output_regs(self):
         if not self._print_regs or self._fdbg is None:
@@ -969,6 +973,7 @@ def main():
     grun.add_argument("-C", "--virtual-call", action="store_true",
             help="実行前にENDのアドレスをスタックに積む")
     grun.add_argument("--input-src", help="実行時の入力元 (default: stdin)", metavar="file")
+    grun.add_argument("--simple-output", action="store_true", help="実行時の出力をそのまま出力する")
     grun.add_argument("--output", help="実行時の出力先 (default: stdout)", metavar="file")
     grun.add_argument("--output-debug", help="実行時のデバッグ出力先 (default: stdout)", metavar="file")
     grun.add_argument("--gr0", type=base_int, default=0, help="GR0の初期値", metavar="n")
@@ -1023,7 +1028,7 @@ def main():
     if args.parse_only:
         return
 
-    c = Comet2(mem, args.print_regs)
+    c = Comet2(mem, args.print_regs, args.simple_output)
     grlist = [args.gr0, args.gr1, args.gr2, args.gr3,
             args.gr4, args.gr5, args.gr6, args.gr7]
     c.init_regs(grlist, 0, args.sp, args.zf, args.sf, args.of)
