@@ -1015,7 +1015,7 @@ def main():
         for label, adr in labeldict.items():
             if adr is None:
                 continue
-            print(f"# {label:>10}: {adr:04x}")
+            print(f"# {label:10} [{adr:04x}]")
         print("")
 
     if args.print_bin:
