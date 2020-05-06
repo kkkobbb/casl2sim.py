@@ -1,0 +1,167 @@
+; Brainfuck Interpreter
+; CODEラベル以降にあるbrainfuckコードを実行する
+
+; GR0: 定数格納用
+; GR1: 未使用
+; GR2: 命令処理用
+; GR3: 命令処理用
+; GR4: 命令処理用
+; GR5: 構文解析用
+; GR6: コード読み込み位置
+; GR7: ポインタ
+
+
+MAIN    START BFMAIN
+
+; brainfuck コード領域
+; Hello World!
+CODE    DC '++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.'
+GUARD   DC 0  ; 強制終了位置
+
+
+BFMAIN  LAD GR7,MEM
+        LAD GR6,CODE
+BFLOOP  LD GR5,0,GR6
+BFCMP1  CPL GR5,STRINCP
+        JNZ BFCMP2
+        CALL OPEINCP
+        JUMP BFNEXT
+BFCMP2  CPL GR5,STRDECP
+        JNZ BFCMP3
+        CALL OPEDECP
+        JUMP BFNEXT
+BFCMP3  CPL GR5,STRINCV
+        JNZ BFCMP4
+        CALL OPEINCV
+        JUMP BFNEXT
+BFCMP4  CPL GR5,STRDECV
+        JNZ BFCMP5
+        CALL OPEDECV
+        JUMP BFNEXT
+BFCMP5  CPL GR5,STROUT
+        JNZ BFCMP6
+        CALL OPEOUT
+        JUMP BFNEXT
+BFCMP6  CPL GR5,STRIN
+        JNZ BFCMP7
+        CALL OPEIN
+        JUMP BFNEXT
+BFCMP7  CPL GR5,STRBRS
+        JNZ BFCMP8
+        CALL OPEBRS
+        JUMP BFNEXT
+BFCMP8  CPL GR5,STRBRE
+        JNZ BFNEXT
+        CALL OPEBRE
+BFNEXT  ADDL GR6,=1
+        LAD GR5,GUARD
+        CPL GR6,GR5
+        JZE BFEND  ; GUARDまで来たら終了
+        JUMP BFLOOP
+BFEND   RET
+
+; ポインタをインクリメントする
+STRINCP DC '>'  ; increment the pointer
+OPEINCP ADDL GR7,=1
+        ; TODO 範囲確認
+        RET
+
+; ポインタをデクリメントする
+STRDECP DC '<'  ; decrement the pointer
+OPEDECP SUBL GR7,=1
+        ; TODO 範囲確認
+        RET
+
+; ポインタが指す値をインクリメントする
+STRINCV DC '+'  ; increment value
+OPEINCV LD GR4,=1
+        ADDL GR4,0,GR7
+        AND GR4,=255
+        ST GR4,0,GR7
+        RET
+
+; ポインタが指す値をデクリメントする
+STRDECV DC '-'  ; decrement value
+OPEDECV LD GR4,0,GR7
+        LD GR3,=1
+        SUBL GR4,GR3
+        AND GR4,=255
+        ST GR4,0,GR7
+        RET
+
+; ポインタが指す値を出力する
+STROUT  DC '.'  ; output
+OPEOUT  LD GR4,0,GR7
+        ST GR4,OUTDAT
+        OUT OUTDAT,OUTLEN
+        RET
+
+; 入力から1バイト読み込んでポインタが指す先に格納する
+; 256文字まで入力できるが、毎回使用するのは先頭1文字のみ
+STRIN   DC ','  ; input
+OPEIN   XOR GR0,GR0
+        ST GR0,INDAT  ; 入力無しの場合0にする
+        IN INDAT,INLEN
+        LD GR4,INDAT
+        ST GR4,0,GR7  ; 入力値をポインタの指す先へ保存
+        RET
+
+; ポインタが指す値が0の場合、対応する]の直後にジャンプする
+STRBRS  DC '['  ; branch start
+OPEBRS  XOR GR0,GR0
+        CPL GR0,0,GR7
+        JNZ BRSEND   ; ポインタが指す値が0でない場合、何もしない
+        XOR GR2,GR2  ; GR2に入れ子の数を保存
+        LD GR4,GR6
+BRSLOOP ADDL GR4,=1
+        LD GR3,0,GR4
+        ; 入れ子の確認
+        CPL GR3,STRBRS
+        JNZ BRSCMP
+        ADDL GR2,=1
+        ; ジャンプ先かの確認
+BRSCMP  CPL GR3,STRBRE
+        JNZ BRSLOOP
+        CPL GR2,=0
+        JZE BRSJMP
+        ; 入れ子の場合、繰り返し
+        SUBL GR2,=1
+        JUMP BRSLOOP
+BRSJMP  LD GR6,GR4  ; ジャンプ処理
+BRSEND  RET
+
+; ポインタが指す値が0でないなら対応する[の直後にジャンプする
+STRBRE  DC ']'  ; branch end
+OPEBRE  XOR GR0,GR0
+        CPL GR0,0,GR7
+        JZE BREEND   ; ポインタが指す値が0の場合、何もしない
+        XOR GR2,GR2  ; GR2に入れ子の数を保存
+        LD GR4,GR6
+BRELOOP SUBL GR4,=1
+        LD GR3,0,GR4
+        ; 入れ子の確認
+        CPL GR3,STRBRE
+        JNZ BRECMP
+        ADDL GR2,=1
+        ; ジャンプ先かの確認
+BRECMP  CPL GR3,STRBRS
+        JNZ BRELOOP
+        CPL GR2,=0
+        JZE BREJMP
+        ; 入れ子の場合、繰り返し
+        SUBL GR2,=1
+        JUMP BRELOOP
+BREJMP  LD GR6,GR4  ; ジャンプ処理
+BREEND  RET
+
+
+; .命令(出力)用の領域
+OUTLEN  DC 1  ; 出力サイズ (1で固定)
+OUTDAT  DS 1  ; 出力データ格納先
+; ,命令(入力)用の領域
+INLEN   DS 1
+INDAT   DS 256
+
+; brainfuck メモリ領域
+MEM     DS 30000
+        END
