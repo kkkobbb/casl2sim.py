@@ -1001,6 +1001,8 @@ def main():
     grun.add_argument("--simple-output", action="store_true", help="実行時の出力をそのまま出力する")
     grun.add_argument("--output", help="実行時の出力先 (default: stdout)", metavar="file")
     grun.add_argument("--output-debug", help="実行時のデバッグ出力先 (default: stdout)", metavar="file")
+    grun.add_argument("--start", type=base_int, help="プログラム開始アドレス", metavar="n")
+    grun.add_argument("--end", type=base_int, help="プログラム終了アドレス", metavar="n")
     grun.add_argument("--gr0", type=base_int, default=0, help="GR0の初期値", metavar="n")
     grun.add_argument("--gr1", type=base_int, default=0, help="GR1の初期値", metavar="n")
     grun.add_argument("--gr2", type=base_int, default=0, help="GR2の初期値", metavar="n")
@@ -1009,7 +1011,6 @@ def main():
     grun.add_argument("--gr5", type=base_int, default=0, help="GR5の初期値", metavar="n")
     grun.add_argument("--gr6", type=base_int, default=0, help="GR6の初期値", metavar="n")
     grun.add_argument("--gr7", type=base_int, default=0, help="GR7の初期値", metavar="n")
-    grun.add_argument("--pr", type=base_int, help="PRの初期値", metavar="n")
     grun.add_argument("--sp", type=base_int, default=0, help="SPの初期値", metavar="n")
     grun.add_argument("--zf", type=base_int, default=0, help="FR(zero flag)の初期値", metavar="n")
     grun.add_argument("--sf", type=base_int, default=0, help="FR(sign flag)の初期値", metavar="n")
@@ -1032,11 +1033,14 @@ def main():
             f = stack.enter_context(open(args.asmfile))
         used_stdin = f == sys.stdin
         p.parse(f)
-    if args.pr is None:
+    if args.start is None:
         start = p.get_start()
     else:
-        start = args.pr
-    end = p.get_end()
+        start = args.start
+    if args.end is None:
+        end = p.get_end()
+    else:
+        end = args.end
 
     if args.load_data is not None:
         with open(args.load_data, "rb") as f:
