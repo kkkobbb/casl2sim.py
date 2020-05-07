@@ -442,12 +442,13 @@ class Comet2:
     def get_allmem(self):
         return self._mem
 
-    def run(self, start, end, fout=None, fdbg=None, fin=None, virtual_call=False):
+    def run(self, start, end, fout=None, fdbg=None, fin=None, virtual_call=False, input_all=False):
         self._fout = fout
         self._fdbg = fdbg
         self._fin = fin
         self._pr = start & 0xffff
         end = end & 0xffff
+        self._input_all = input_all
         self.output_regs()
         if virtual_call:
             self._sp = (self._sp - 1) & 0xffff
@@ -931,17 +932,17 @@ class Comet2:
             if self._fin is not None:
                 while True:
                     instr = self._fin.read(1)
-                    if instr == "" or Comet2.is_printable(instr):
+                    if instr == "" or self._input_all or Comet2.is_printable(instr):
                         break
             if instr == "":
                 break
             d = ord(instr)&0xff
             self.set_mem(save_adr, d)
-            self.output_debug(elem, f"IN: MEM[{save_adr:04x}] <- {d:04x}", False)
+            self.output_debug(elem, f"IN: MEM[{save_adr:04x}] <- {d:04x} <input>", False)
             size += 1
         size_adr = self.get_gr(2)
         self.set_mem(size_adr, size)
-        self.output_debug(elem, f"IN: MEM[{size_adr:04x}] <- {size:04x}", False)
+        self.output_debug(elem, f"IN: MEM[{size_adr:04x}] <- {size:04x} <input size>", False)
 
     @staticmethod
     def is_printable(s):
@@ -996,8 +997,6 @@ def main():
     grun = parser.add_argument_group("runtime optional arguments")
     grun.add_argument("-R", "--print-regs", action="store_true", help="実行前後にレジスタの内容を表示する")
     grun.add_argument("-M", "--print-mem", action="store_true", help="実行後にメモリの内容を表示する")
-    grun.add_argument("-C", "--virtual-call", action="store_true",
-            help="実行前にENDのアドレスをスタックに積む")
     grun.add_argument("--input-src", help="実行時の入力元 (default: stdin)", metavar="file")
     grun.add_argument("--simple-output", action="store_true", help="実行時の出力をそのまま出力する")
     grun.add_argument("--output", help="実行時の出力先 (default: stdout)", metavar="file")
@@ -1015,11 +1014,13 @@ def main():
     grun.add_argument("--zf", type=base_int, default=0, help="FR(zero flag)の初期値", metavar="n")
     grun.add_argument("--sf", type=base_int, default=0, help="FR(sign flag)の初期値", metavar="n")
     grun.add_argument("--of", type=base_int, default=0, help="FR(overflow flag)の初期値", metavar="n")
+    gext = parser.add_argument_group("CASL2 extention optional arguments")
+    gext.add_argument("-C", "--virtual-call", action="store_true",
+            help="実行前にENDのアドレスをスタックに積む")
+    gext.add_argument("--input-all", action="store_true", help="INでの入力は全て受け付ける")
 
     # レジスタ、メモリの値はデフォルトでは0
     # --virtual-call: RETで終了するような、STARTのラベル呼び出しを前提としたコードを正常終了させる
-
-    # TODO SVN INで入力の制限を無視するオプション
 
     args = parser.parse_args()
 
@@ -1081,7 +1082,7 @@ def main():
             fin = stack.enter_context(open(args.input_src))
         elif used_stdin:
             print("System Warning: both asmfile and input-src are stdin", file=sys.stderr)
-        c.run(start, end, fout, fdbg, fin, args.virtual_call)
+        c.run(start, end, fout, fdbg, fin, args.virtual_call, args.input_all)
 
     if args.print_mem:
         print_mem(c.get_allmem())
