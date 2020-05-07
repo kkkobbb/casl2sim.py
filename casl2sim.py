@@ -78,7 +78,7 @@ class Parser:
         sys.exit(1)
 
     def get_mem(self):
-        return self._mem[:]
+        return self._mem
 
     def get_start(self):
         return self._start
@@ -427,6 +427,9 @@ class Comet2:
         self._zf = int(zf != 0)
         self._sf = int(sf != 0)
         self._of = int(of != 0)
+
+    def get_allmem(self):
+        return self._mem
 
     def run(self, start, end, fout=None, fdbg=None, fin=None, virtual_call=False):
         self._fout = fout
@@ -952,9 +955,16 @@ class Comet2:
         return "".join([chr(i) for i in ilist])
 # End Comet2
 
+def print_mem(mem):
+        width = 8
+        for i in range(0, len(mem), width):
+            line = " ".join([f"{m.value:04x}" for m in mem[i:i+width]])
+            print(f"# [{i:04x}]: {line}")
+        print("")
 
 def base_int(nstr):
     return int(nstr, 0)
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -970,6 +980,7 @@ def main():
     gasm.add_argument("-a", "--parse-only", action="store_true", help="実行せずに終了する")
     grun = parser.add_argument_group("runtime optional arguments")
     grun.add_argument("-R", "--print-regs", action="store_true", help="実行前後にレジスタの内容を表示する")
+    grun.add_argument("-M", "--print-mem", action="store_true", help="実行後にメモリの内容を表示する")
     grun.add_argument("-C", "--virtual-call", action="store_true",
             help="実行前にENDのアドレスをスタックに積む")
     grun.add_argument("--input-src", help="実行時の入力元 (default: stdin)", metavar="file")
@@ -1019,11 +1030,7 @@ def main():
         print("")
 
     if args.print_bin:
-        width = 8
-        for i in range(0, len(mem), width):
-            line = " ".join([f"{m.value:04x}" for m in mem[i:i+width]])
-            print(f"# [{i:04x}]: {line}")
-        print("")
+        print_mem(mem)
 
     if args.parse_only:
         return
@@ -1053,6 +1060,9 @@ def main():
         elif used_stdin:
             print("System Warning: both asmfile and input-src are stdin", file=sys.stderr)
         c.run(start, end, fout, fdbg, fin, args.virtual_call)
+
+    if args.print_mem:
+        print_mem(c.get_allmem())
 
 if __name__ == "__main__":
     main()
