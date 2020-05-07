@@ -1019,6 +1019,8 @@ def main():
     # レジスタ、メモリの値はデフォルトでは0
     # --virtual-call: RETで終了するような、STARTのラベル呼び出しを前提としたコードを正常終了させる
 
+    # TODO SVN INで入力の制限を無視するオプション
+
     args = parser.parse_args()
 
     p = Parser(args.start_offset)
