@@ -73,6 +73,17 @@ class Parser:
             self.err_exit("syntax error [not found 'START']")
         self.set_labelinfo()
 
+    def load_data(self, f, offset):
+        adr = offset
+        while True:
+            while len(self._mem) <= adr:
+                self._mem.append(Element(0, 0))
+            b = f.read(1)
+            if b == b'':
+                break
+            self._mem[adr].value = int.from_bytes(b, byteorder=sys.byteorder)
+            adr += 1
+
     def err_exit(self, msg):
         print(f"Assemble Error: {msg}", file=sys.stderr)
         sys.exit(1)
@@ -978,6 +989,10 @@ def main():
             help="ラベルのアドレス一覧を出力する")
     gasm.add_argument("-b", "--print-bin", action="store_true", help="アセンブル後のバイナリを出力する")
     gasm.add_argument("-a", "--parse-only", action="store_true", help="実行せずに終了する")
+    gasm.add_argument("--load-data",
+            help="アセンブル後に0番地からfileの内容を1byteずつ書き込む", metavar="file")
+    gasm.add_argument("--load-data-offset", type=base_int, default=0,
+            help="--load-dataオプションの開始番地", metavar="n")
     grun = parser.add_argument_group("runtime optional arguments")
     grun.add_argument("-R", "--print-regs", action="store_true", help="実行前後にレジスタの内容を表示する")
     grun.add_argument("-M", "--print-mem", action="store_true", help="実行後にメモリの内容を表示する")
@@ -1014,12 +1029,17 @@ def main():
             f = stack.enter_context(open(args.asmfile))
         used_stdin = f == sys.stdin
         p.parse(f)
-    mem = p.get_mem()
     if args.pr is None:
         start = p.get_start()
     else:
         start = args.pr
     end = p.get_end()
+
+    if args.load_data is not None:
+        with open(args.load_data, "rb") as f:
+            p.load_data(f, args.load_data_offset)
+
+    mem = p.get_mem()
 
     if args.print_labels:
         labeldict = p.get_labels()
