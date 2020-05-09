@@ -395,7 +395,8 @@ class Comet2:
         self._of = 0
         self._fin = None
         self._fout = None
-        self._fdbg =None
+        self._fdbg = None
+        self._input_all = None
         self.init_mem(mem)
         self.OP_TABLE = {
                 0x00:self.op_NOP,
