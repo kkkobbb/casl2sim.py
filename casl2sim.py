@@ -28,9 +28,9 @@ class Element:
         self.value = v
         # int (debug用) asmでの行番号を格納する asmと無関係または値が実行時に書き換えられた場合は0
         self.line = l
-        # 値がラベル由来の場合のラベル名 それ以外はNone 値が実行時に書き換えられた場合はNone
+        # str (debug用) 値がラベル由来の場合のラベル名 それ以外はNone 値が実行時に書き換えられた場合はNone
         self.vlabel = vlabel
-        # ラベルが指定された番地の場合のラベル名 それ以外はNone この値は実行時に変更されない
+        # str (debug用) ラベルが指定された番地の場合のラベル名 それ以外はNone 実行時に変更されない
         self.label = label
 # End Element
 
