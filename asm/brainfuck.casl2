@@ -50,9 +50,9 @@ BFCMP8  CPL GR5,STRBRE
 BFNEXT  ADDL GR6,=1
         LAD GR5,GUARD
         CPL GR6,GR5
-        JZE BFEND  ; GUARDまで来たら終了
-        JUMP BFLOOP
-BFEND   RET
+        JMI BFLOOP
+        ; GUARDまで来たら終了
+        RET
 
 ; ポインタをインクリメントする
 STRINCP DC '>'  ; increment the pointer
