@@ -35,7 +35,7 @@ class Element:
 # End Element
 
 class Parser:
-    REG_NAME_LIST = ["GR0", "GR1", "GR2", "GR3", "GR4", "GR5", "GR6", "GR7"]
+    REG_NAME_LIST = ("GR0", "GR1", "GR2", "GR3", "GR4", "GR5", "GR6", "GR7")
 
     def __init__(self, start_offset=0):
         self._start_offset = start_offset
@@ -247,7 +247,7 @@ class Parser:
 
     def parse_op(self, op, args):
         if op == "NOP":
-            return self.mk_1word(0x00, 0, 0)
+            return self.encode_1word(0x00, 0, 0)
         elif op == "LD":
             return self.op_1or2word(0x14, 0x10, args)
         elif op == "ST":
@@ -295,15 +295,15 @@ class Parser:
         elif op == "PUSH":
             return self.op_2word(0x70, args, True)
         elif op == "POP":
-            return self.mk_1word(0x71, self.reg(args[0]), 0)
+            return self.encode_1word(0x71, self.reg(args[0]), 0)
         elif op == "CALL":
             return self.op_2word(0x80, args, True)
         elif op == "RET":
-            return self.mk_1word(0x81, 0, 0)
+            return self.encode_1word(0x81, 0, 0)
         elif op == "SVC":
             # 1 IN:   GR1(保存先アドレス) GR2(サイズ格納先アドレス)
             # 2 OUT:  GR1(出力元アドレス) GR2(サイズ格納先アドレス)
-            return self.mk_2word(0xf0, 0, args[0], 0)
+            return self.encode_2word(0xf0, 0, args[0], 0)
         elif op == "START":
             if len(self._mem) != self._start_offset:
                 self.err_exit("syntax error ['START' must be first]")
@@ -322,16 +322,20 @@ class Parser:
         self.err_exit(f"unknown operation (L{self._line_num}: {op})")
 
     def op_1or2word(self, op1word, op2word, args):
+        """
+        argsから1word命令か2word命令かを判断して命令を生成する
+        1word命令の場合op1wordを使用し、2word命令の場合op2wordを使用する
+        """
         opr1 = self.reg(args[0])
         if args[1] in self.REG_NAME_LIST:
             opr2 = self.reg(args[1])
-            return self.mk_1word(op1word, opr1, opr2)
+            return self.encode_1word(op1word, opr1, opr2)
         opr2 = args[1]
         if len(args) <= 2:
             opr3 = 0
         else:
             opr3 = self.reg(args[2])
-        return self.mk_2word(op2word, opr1, opr2, opr3)
+        return self.encode_2word(op2word, opr1, opr2, opr3)
 
     def op_2word(self, op, args, without_opr1=False):
         opr1 = 0
@@ -353,18 +357,24 @@ class Parser:
                 opr3_arg = args[1]
         if opr3_arg is not None:
             opr3 = self.reg(opr3_arg)
-        return self.mk_2word(op, opr1, opr2, opr3)
+        return self.encode_2word(op, opr1, opr2, opr3)
 
     def reg(self, regname):
         if regname not in self.REG_NAME_LIST:
             self.err_exit(f"bad register name (L{self._line_num}: {regname})")
         return ord(regname[2]) - ord("0")
 
-    def mk_1word(self, opcode, operand1, operand2):
+    def encode_1word(self, opcode, operand1, operand2):
         word = ((opcode & 0xff) << 8) | ((operand1 & 0xf) << 4) | (operand2 & 0xf)
         return [Element(word, self._line_num)]
 
-    def mk_2word(self, opcode, operand1, operand2, operand3):
+    def encode_2word(self, opcode, operand1, operand2, operand3):
+        """
+        opcode:   int
+        operand1: int
+        operand2: str
+        operand3: int
+        """
         word1 = ((opcode & 0xff) << 8) | ((operand1 & 0xf) << 4) | (operand3 & 0xf)
         elem1 = Element(word1, self._line_num)
         elem2 = Element(0, self._line_num)
