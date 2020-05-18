@@ -186,8 +186,7 @@ class Parser:
         m = re.match(RE_DC_ARGS, args)
         if m is None:
             self.err_exit(f"syntax error [DC bad format] (L{self._line_num})")
-        arg = m.group(1)
-        args = m.group(3).strip()
+        arg, _, args = m.groups()
         mem_part = self.parse_DC_arg(arg)
         while len(args) != 0:
             if args[0] != ",":
