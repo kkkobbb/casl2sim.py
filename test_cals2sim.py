@@ -16,22 +16,36 @@ casl2sim.Element.__repr__ = \
 
 class TestParser(unittest.TestCase):
     def test_parse_DC(self):
+        patterns = [
+                (" DC 12", [casl2sim.Element(12, 0)], "decimal"),
+                (" DC #000a", [casl2sim.Element(10, 0)], "hex"),
+                (" DC LAB", [casl2sim.Element(0xff, 0, "LAB")], "label"),
+                (" DC 'abc'", [
+                    casl2sim.Element(ord("a"), 0),
+                    casl2sim.Element(ord("b"), 0),
+                    casl2sim.Element(ord("c"), 0)], "str"),
+                (" DC 'y''z'", [
+                    casl2sim.Element(ord("y"), 0),
+                    casl2sim.Element(ord("'"), 0),
+                    casl2sim.Element(ord("z"), 0)], "str (')"),
+                (" DC 12, #000f, LAB, 'abcd''e'''", [
+                    casl2sim.Element(12, 0),
+                    casl2sim.Element(0xf, 0),
+                    casl2sim.Element(0xff, 0, "LAB"),
+                    casl2sim.Element(ord("a"), 0),
+                    casl2sim.Element(ord("b"), 0),
+                    casl2sim.Element(ord("c"), 0),
+                    casl2sim.Element(ord("d"), 0),
+                    casl2sim.Element(ord("'"), 0),
+                    casl2sim.Element(ord("e"), 0),
+                    casl2sim.Element(ord("'"), 0)], "multi")]
         p = casl2sim.Parser()
         p._defined_labels = {"LAB":0xff}
-        expected = [
-                casl2sim.Element(12, 0),
-                casl2sim.Element(0xf, 0),
-                casl2sim.Element(0xff, 0, "LAB"),
-                casl2sim.Element(ord("a"), 0),
-                casl2sim.Element(ord("b"), 0),
-                casl2sim.Element(ord("c"), 0),
-                casl2sim.Element(ord("d"), 0),
-                casl2sim.Element(ord("'"), 0),
-                casl2sim.Element(ord("e"), 0),
-                casl2sim.Element(ord("'"), 0)]
-        actual = p.parse_DC(" DC 12, #000f, LAB, 'abcd''e'''")
-        p.resolve_labels()
-        self.assertEqual(expected, actual)
+        for asm, expected, msg in patterns:
+            with self.subTest(msg):
+                actual = p.parse_DC(asm)
+                p.resolve_labels()
+                self.assertEqual(expected, actual)
 
     def test_op_1or2word(self):
         patterns = [

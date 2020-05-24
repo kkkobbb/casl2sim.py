@@ -190,7 +190,7 @@ class Parser:
         mem_part = self.parse_DC_arg(arg)
         while len(args) != 0:
             if args[0] != ",":
-                self.err_exit(f"syntax error [','] (L{self._line_num})")
+                self.err_exit(f"syntax error [DC ','] (L{self._line_num})")
             args = args[1:].strip()
             m = re.match(RE_DC_ARGS, args)
             arg, _, args = m.groups()
@@ -300,8 +300,6 @@ class Parser:
         elif op == "RET":
             return self.encode_1word(0x81, 0, 0)
         elif op == "SVC":
-            # 1 IN:   GR1(保存先アドレス) GR2(サイズ格納先アドレス)
-            # 2 OUT:  GR1(出力元アドレス) GR2(サイズ格納先アドレス)
             return self.encode_2word(0xf0, 0, args[0], 0)
         elif op == "START":
             if len(self._mem) != self._start_offset:
@@ -932,6 +930,7 @@ class Comet2:
             self.err_exit(f"unknown SVC op 'SVC {code2:04x}'")
 
     def op_SVC_IN(self, elem):
+        # IN: GR1(保存先アドレス) GR2(サイズ格納先アドレス)
         # self._finがNoneの場合、サイズ0の入力とみなす
         start = self.get_gr(1)
         self.output_debug(elem, "SVC IN", False)
@@ -961,6 +960,7 @@ class Comet2:
         return (0x21 <= c and c <= 0x7e) or (0xa1 <= c and c <= 0xdf)
 
     def op_SVC_OUT(self, elem):
+        # OUT: GR1(出力元アドレス) GR2(サイズ格納先アドレス)
         msg = []
         start = self.get_gr(1)
         end = start + self.get_mem(self.get_gr(2))
