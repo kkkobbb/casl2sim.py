@@ -187,6 +187,7 @@ class Parser:
         if m is None:
             self.err_exit(f"syntax error [DC bad format] (L{self._line_num})")
         arg, _, args = m.groups()
+        args = args.strip()
         mem_part = self.parse_DC_arg(arg)
         while len(args) != 0:
             if args[0] != ",":

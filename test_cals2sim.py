@@ -18,6 +18,7 @@ class TestParser(unittest.TestCase):
     def test_parse_DC(self):
         patterns = [
                 (" DC 12", [casl2sim.Element(12, 0)], "decimal"),
+                (" DC 12   ", [casl2sim.Element(12, 0)], "space end"),
                 (" DC #000a", [casl2sim.Element(10, 0)], "hex"),
                 (" DC LAB", [casl2sim.Element(0xff, 0, "LAB")], "label"),
                 (" DC 'abc'", [
@@ -39,6 +40,7 @@ class TestParser(unittest.TestCase):
                     casl2sim.Element(ord("'"), 0),
                     casl2sim.Element(ord("e"), 0),
                     casl2sim.Element(ord("'"), 0)], "multi")]
+
         p = casl2sim.Parser()
         p._defined_labels = {"LAB":0xff}
         for asm, expected, msg in patterns:
