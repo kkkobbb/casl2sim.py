@@ -125,6 +125,25 @@ class TestParser(unittest.TestCase):
                     p.resolve_labels()
                 self.assertEqual(1, cm.exception.code)
                 mock_err_exit.assert_called_once_with(expected_err_msg)
+
+    @mock.patch("sys.stderr.write")
+    def test_err_exit(self, mock_stderr_write):
+        var1 = 12
+        patterns = (
+                ("syntax error", "err 1"),
+                (f"test error '{var1}'", "err 2"),
+                ("", "err 3"))
+
+        p = casl2sim.Parser()
+        for err_msg, msg in patterns:
+            with self.subTest(msg):
+                mock_stderr_write.reset_mock()
+                with self.assertRaises(SystemExit) as cm:
+                    p.err_exit(err_msg)
+                self.assertEqual(1, cm.exception.code)
+                expected = "Assemble Error: " + err_msg + "\n"
+                actual = "".join(["".join(call.args) for call in mock_stderr_write.call_args_list])
+                self.assertEqual(expected, actual)
 # End TestParser
 
 class TestComet2(unittest.TestCase):
@@ -889,6 +908,25 @@ class TestComet2(unittest.TestCase):
         c.op_SVC(elem)
         actual = c._fout.getvalue()
         self.assertEqual(expected, actual)
+
+    @mock.patch("sys.stderr.write")
+    def test_err_exit_no_print_regs(self, mock_stderr_write):
+        var1 = 12
+        patterns = (
+                ("syntax error", "err 1"),
+                (f"test error '{var1}'", "err 2"),
+                ("", "err 3"))
+
+        c = casl2sim.Comet2([])
+        for err_msg, msg in patterns:
+            with self.subTest(msg):
+                mock_stderr_write.reset_mock()
+                with self.assertRaises(SystemExit) as cm:
+                    c.err_exit(err_msg)
+                self.assertEqual(1, cm.exception.code)
+                expected = "Runtime Error: " + err_msg + "\n"
+                actual = "".join(["".join(call.args) for call in mock_stderr_write.call_args_list])
+                self.assertEqual(expected, actual)
 # End TestComet2
 
 class TestMain(unittest.TestCase):
