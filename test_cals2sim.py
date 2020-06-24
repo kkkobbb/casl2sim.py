@@ -561,102 +561,98 @@ class TestComet2(unittest.TestCase):
 
     def test_op_SLA(self):
         patterns = [
-                (0x000f, 0x0004, 0x00f0, (0, 0, 0), "no flag"),
-                (0x180f, 0x0004, 0x00f0, (0, 0, 1), "overflow"),
-                (0x7f00, 0x0009, 0x0000, (1, 0, 0), "zero"),
-                (0xbf01, 0x000f, 0x8000, (0, 1, 1), "15bit shift"),
-                (0xbf01, 0x0010, 0x8000, (0, 1, 0), "16bit shift"),
-                (0x7f00, 0xffff, 0x0000, (1, 0, 0), "long shift positive"),
-                (0xff00, 0xffff, 0x8000, (0, 1, 0), "long shift negative")]
+                (0x000f, 0x0000, 0x0004, 0x00f0, (0, 0, 0), "no flag"),
+                (0x000f, 0x0001, 0x0003, 0x00f0, (0, 0, 0), "offset"),
+                (0x180f, 0x0000, 0x0004, 0x00f0, (0, 0, 1), "overflow"),
+                (0x7f00, 0x0000, 0x0009, 0x0000, (1, 0, 0), "zero"),
+                (0xbf01, 0x0000, 0x000f, 0x8000, (0, 1, 1), "15bit shift"),
+                (0xbf01, 0x0000, 0x0010, 0x8000, (0, 1, 0), "16bit shift"),
+                (0x7f00, 0x0000, 0xffff, 0x0000, (1, 0, 0), "long shift positive"),
+                (0xff00, 0x0000, 0xffff, 0x8000, (0, 1, 0), "long shift negative")]
 
-        mem = [
-                casl2sim.Element(0x5010, 0),
-                casl2sim.Element(0x0002, 0)]
+        mem = [casl2sim.Element(0x5012, 0)]
         c = casl2sim.Comet2(mem)
-        for rval, mval, expected_rval, expected_flags, msg in patterns:
+        for rval, oval, xval, expected_rval, expected_flags, msg in patterns:
             with self.subTest(msg):
                 c._pr = 0
-                c._gr = [0, rval, 0, 0, 0, 0, 0, 0]
+                c._gr = [0, rval, xval, 0, 0, 0, 0, 0]
                 c._zf, c._sf, c._of = 0, 0, 0
-                c._mem[2].value = mval
+                mem[1].value = oval
                 elem = c.fetch()
                 c.op_SLA(elem)
-                self.assertEqual([0, expected_rval, 0, 0, 0, 0, 0, 0], c._gr)
+                self.assertEqual([0, expected_rval, xval, 0, 0, 0, 0, 0], c._gr)
                 self.assertEqual(expected_flags, (c._zf, c._sf, c._of))
 
     def test_op_SRA(self):
         patterns = [
-                (0x7000, 0x0004, 0x0700, (0, 0, 0), "no flag"),
-                (0xf00f, 0x0004, 0xff00, (0, 1, 1), "overflow"),
-                (0x0007, 0x0004, 0x0000, (1, 0, 0), "zero"),
-                (0xbf01, 0x000f, 0xffff, (0, 1, 0), "15bit shift"),
-                (0xbf01, 0x0010, 0xffff, (0, 1, 1), "16bit shift"),
-                (0x7f00, 0xffff, 0x0000, (1, 0, 0), "long shift positive"),
-                (0xff00, 0xffff, 0xffff, (0, 1, 1), "long shift negative")]
+                (0x7000, 0x0000, 0x0004, 0x0700, (0, 0, 0), "no flag"),
+                (0x7000, 0x0001, 0x0003, 0x0700, (0, 0, 0), "offset"),
+                (0xf00f, 0x0000, 0x0004, 0xff00, (0, 1, 1), "overflow"),
+                (0x0007, 0x0000, 0x0004, 0x0000, (1, 0, 0), "zero"),
+                (0xbf01, 0x0000, 0x000f, 0xffff, (0, 1, 0), "15bit shift"),
+                (0xbf01, 0x0000, 0x0010, 0xffff, (0, 1, 1), "16bit shift"),
+                (0x7f00, 0x0000, 0xffff, 0x0000, (1, 0, 0), "long shift positive"),
+                (0xff00, 0x0000, 0xffff, 0xffff, (0, 1, 1), "long shift negative")]
 
-        mem = [
-                casl2sim.Element(0x5120, 0),
-                casl2sim.Element(0x0002, 0)]
+        mem = [casl2sim.Element(0x5123, 0)]
         c = casl2sim.Comet2(mem)
-        for rval, mval, expected_rval, expected_flags, msg in patterns:
+        for rval, oval, xval, expected_rval, expected_flags, msg in patterns:
             with self.subTest(msg):
                 c._pr = 0
-                c._gr = [0, 0, rval, 0, 0, 0, 0, 0]
+                c._gr = [0, 0, rval, xval, 0, 0, 0, 0]
                 c._zf, c._sf, c._of = 0, 0, 0
-                c._mem[2].value = mval
+                c._mem[1].value = oval
                 elem = c.fetch()
                 c.op_SRA(elem)
-                self.assertEqual([0, 0, expected_rval, 0, 0, 0, 0, 0], c._gr)
+                self.assertEqual([0, 0, expected_rval, xval, 0, 0, 0, 0], c._gr)
                 self.assertEqual(expected_flags, (c._zf, c._sf, c._of))
 
     def test_op_SLL(self):
         patterns = [
-                (0x000f, 0x0004, 0x00f0, (0, 0, 0), "no flag"),
-                (0x180f, 0x0004, 0x80f0, (0, 0, 1), "overflow"),
-                (0x7f00, 0x0009, 0x0000, (1, 0, 0), "zero"),
-                (0xbf01, 0x0010, 0x0000, (1, 0, 1), "16bit shift"),
-                (0xbf01, 0x0011, 0x0000, (1, 0, 0), "17bit shift"),
-                (0x7f00, 0xffff, 0x0000, (1, 0, 0), "long shift positive"),
-                (0xff00, 0xffff, 0x0000, (1, 0, 0), "long shift negative")]
+                (0x000f, 0x0000, 0x0004, 0x00f0, (0, 0, 0), "no flag"),
+                (0x000f, 0x0001, 0x0003, 0x00f0, (0, 0, 0), "offset"),
+                (0x180f, 0x0000, 0x0004, 0x80f0, (0, 0, 1), "overflow"),
+                (0x7f00, 0x0000, 0x0009, 0x0000, (1, 0, 0), "zero"),
+                (0xbf01, 0x0000, 0x0010, 0x0000, (1, 0, 1), "16bit shift"),
+                (0xbf01, 0x0000, 0x0011, 0x0000, (1, 0, 0), "17bit shift"),
+                (0x7f00, 0x0000, 0xffff, 0x0000, (1, 0, 0), "long shift positive"),
+                (0xff00, 0x0000, 0xffff, 0x0000, (1, 0, 0), "long shift negative")]
 
-        mem = [
-                casl2sim.Element(0x5230, 0),
-                casl2sim.Element(0x0002, 0)]
+        mem = [casl2sim.Element(0x5234, 0)]
         c = casl2sim.Comet2(mem)
-        for rval, mval, expected_rval, expected_flags, msg in patterns:
+        for rval, oval, xval, expected_rval, expected_flags, msg in patterns:
             with self.subTest(msg):
                 c._pr = 0
-                c._gr = [0, 0, 0, rval, 0, 0, 0, 0]
+                c._gr = [0, 0, 0, rval, xval, 0, 0, 0]
                 c._zf, c._sf, c._of = 0, 0, 0
-                c._mem[2].value = mval
+                c._mem[1].value = oval
                 elem = c.fetch()
                 c.op_SLL(elem)
-                self.assertEqual([0, 0, 0, expected_rval, 0, 0, 0, 0], c._gr)
+                self.assertEqual([0, 0, 0, expected_rval, xval, 0, 0, 0], c._gr)
                 self.assertEqual(expected_flags, (c._zf, c._sf, c._of))
 
     def test_op_SRL(self):
         patterns = [
-                (0x7000, 0x0004, 0x0700, (0, 0, 0), "no flag"),
-                (0xf00f, 0x0004, 0x0f00, (0, 0, 1), "overflow"),
-                (0x0007, 0x0004, 0x0000, (1, 0, 0), "zero"),
-                (0xbf00, 0x0010, 0x0000, (1, 0, 1), "16bit shift"),
-                (0xbf00, 0x0011, 0x0000, (1, 0, 0), "17bit shift"),
-                (0x7f00, 0xffff, 0x0000, (1, 0, 0), "long shift positive"),
-                (0xff00, 0xffff, 0x0000, (1, 0, 0), "long shift negative")]
+                (0x7000, 0x0000, 0x0004, 0x0700, (0, 0, 0), "no flag"),
+                (0x7000, 0x0001, 0x0003, 0x0700, (0, 0, 0), "offset"),
+                (0xf00f, 0x0000, 0x0004, 0x0f00, (0, 0, 1), "overflow"),
+                (0x0007, 0x0000, 0x0004, 0x0000, (1, 0, 0), "zero"),
+                (0xbf00, 0x0000, 0x0010, 0x0000, (1, 0, 1), "16bit shift"),
+                (0xbf00, 0x0000, 0x0011, 0x0000, (1, 0, 0), "17bit shift"),
+                (0x7f00, 0x0000, 0xffff, 0x0000, (1, 0, 0), "long shift positive"),
+                (0xff00, 0x0000, 0xffff, 0x0000, (1, 0, 0), "long shift negative")]
 
-        mem = [
-                casl2sim.Element(0x5340, 0),
-                casl2sim.Element(0x0002, 0)]
+        mem = [casl2sim.Element(0x5345, 0)]
         c = casl2sim.Comet2(mem)
-        for rval, mval, expected_rval, expected_flags, msg in patterns:
+        for rval, oval, xval, expected_rval, expected_flags, msg in patterns:
             with self.subTest(msg):
                 c._pr = 0
-                c._gr = [0, 0, 0, 0, rval, 0, 0, 0]
+                c._gr = [0, 0, 0, 0, rval, xval, 0, 0]
                 c._zf, c._sf, c._of = 0, 0, 0
-                c._mem[2].value = mval
+                c._mem[1].value = oval
                 elem = c.fetch()
                 c.op_SRL(elem)
-                self.assertEqual([0, 0, 0, 0, expected_rval, 0, 0, 0], c._gr)
+                self.assertEqual([0, 0, 0, 0, expected_rval, xval, 0, 0], c._gr)
                 self.assertEqual(expected_flags, (c._zf, c._sf, c._of))
 
     def test_op_JMI(self):

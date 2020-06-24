@@ -790,9 +790,8 @@ class Comet2:
         self.output_debug(elem, f"<GR{reg1}={v1:04x} -L GR{reg2}={v2:04x}>")
 
     def op_SLA(self, elem):
-        reg, adr, adr_str = self.get_reg_adr(elem)
+        reg, v2, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
-        v2 = self.get_mem(adr)
         shift = v2 if v2 < self.REG_BITS else self.REG_BITS
         r = v1
         for _ in range(shift):
@@ -801,12 +800,11 @@ class Comet2:
         self._zf = int(r == 0)
         self._sf = (v1 & 0x8000) >> 15
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} << MEM[{adr_str}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} << {adr_str}>")
 
     def op_SRA(self, elem):
-        reg, adr, adr_str = self.get_reg_adr(elem)
+        reg, v2, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
-        v2 = self.get_mem(adr)
         shift = v2 if v2 < self.REG_BITS else self.REG_BITS
         r = v1
         for _ in range(shift):
@@ -815,12 +813,11 @@ class Comet2:
         self._zf = int(r == 0)
         self._sf = (v1 & 0x8000) >> 15
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} >> MEM[{adr_str}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} >> {adr_str}>")
 
     def op_SLL(self, elem):
-        reg, adr, adr_str = self.get_reg_adr(elem)
+        reg, v2, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
-        v2 = self.get_mem(adr)
         shift = v2 if v2 < self.REG_BITS + 1 else self.REG_BITS + 1
         r = v1
         for _ in range(shift):
@@ -829,12 +826,11 @@ class Comet2:
         self._zf = int(r == 0)
         self._sf = 0
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} <<L MEM[{adr_str}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} <<L {adr_str}>")
 
     def op_SRL(self, elem):
-        reg, adr, adr_str = self.get_reg_adr(elem)
+        reg, v2, adr_str = self.get_reg_adr(elem)
         v1 = self.get_gr(reg)
-        v2 = self.get_mem(adr)
         shift = v2 if v2 < self.REG_BITS + 1 else self.REG_BITS + 1
         r = v1
         for _ in range(shift):
@@ -843,7 +839,7 @@ class Comet2:
         self._zf = int(r == 0)
         self._sf = 0
         self.set_gr(reg, r)
-        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} >>L MEM[{adr_str}]={v2:04x}>")
+        self.output_debug(elem, f"GR{reg} <- {r:04x} <GR{reg}={v1:04x} >>L {adr_str}>")
 
     def op_JMI(self, elem):
         _, adr, adr_str = self.get_reg_adr(elem)
