@@ -74,6 +74,7 @@ class TestParser(unittest.TestCase):
     def test_op_2word(self):
         patterns = [
                 (0x11, ["GR1", "13"], (0x1110, 0x000d), "2 operands"),
+                (0x11, ["GR1", "-2"], (0x1110, 0xfffe), "negative"),
                 (0x11, ["GR2", "8", "GR6"], (0x1126, 0x0008), "3 operands")]
 
         p = casl2sim.Parser()

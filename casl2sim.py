@@ -378,8 +378,10 @@ class Parser:
         elem2 = Element(0, self._line_num)
         if operand2[0] == "=":
             self.add_unallocated_const(int(operand2[1:]), elem2)
+        elif operand2[0] == "-" and operand2[1:].isdecimal():
+            elem2.value = -1 * int(operand2[1:]) & 0xffff
         elif operand2.isdecimal():
-            elem2.value = int(operand2)
+            elem2.value = int(operand2) & 0xffff
         else:
             self.add_unresolved_label(operand2, elem2)
         return [elem1, elem2]
