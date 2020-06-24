@@ -21,5 +21,7 @@ CASL2シミュレータ
     * `./casl2sim.py --input-src=infile casl2file`
 * `OUT`の際、ファイル`outfile`に出力する
     * `./casl2sim.py --output=outfile casl2file`
+* デバッグ表示なし、そのまま出力
+    * `./casl2sim.py asm/brainfuck.casl2 -C --simple-output --output-debug=`
 * 別ファイルからデータ読み込み
     * `./casl2sim.py asm/brainfuck.casl2 -C --load-data=bfcode.b --load-data-offset=0x7703`
