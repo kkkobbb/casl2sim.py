@@ -1027,7 +1027,7 @@ def main():
     gext = parser.add_argument_group("CASL2 extention optional arguments")
     gext.add_argument("-C", "--virtual-call", action="store_true",
             help="実行前にENDのアドレスをスタックに積む")
-    gext.add_argument("--input-all", action="store_true", help="INでの入力は全て受け付ける")
+    gext.add_argument("--input-all", action="store_true", help="INでの入力は全ての文字を受け付ける")
 
     # レジスタ、メモリの値はデフォルトでは0
     # --virtual-call: RETで終了するような、STARTのラベル呼び出しを前提としたコードを正常終了させる
