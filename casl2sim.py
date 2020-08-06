@@ -235,7 +235,7 @@ class Parser:
         elif op == "RPOP":
             if len(args) != 0:
                 self.err_exit(f"bad args (L{self._line_num})")
-            return self.mk_macro([("POP", "0", "{reg}") for reg in
+            return self.mk_macro([("POP", "{reg}") for reg in
                     ["GR7", "GR6", "GR5", "GR4", "GR3", "GR2", "GR1"]])
         return None
 
